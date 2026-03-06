@@ -41,7 +41,7 @@ export default function App() {
 
   // Watch identity changes
   useEffect(() => {
-    if (appState === "splash") return;
+    if (appState === "splash" || appState === "app") return;
 
     if (!identity) {
       setAppState("onboarding");

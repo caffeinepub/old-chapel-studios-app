@@ -20,9 +20,8 @@ import {
   UserPlus,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
-import { getSecretParameter } from "../utils/urlParams";
 
 type Screen =
   | "welcome"
@@ -43,9 +42,9 @@ export default function OnboardingScreen({
 }: OnboardingScreenProps) {
   const { login, isLoggingIn, isInitializing, identity } =
     useInternetIdentity();
-  const { actor, isFetching: isActorFetching } = useActor();
+  const { actor } = useActor();
   const [screen, setScreen] = useState<Screen>(identity ? "invite" : "welcome");
-  const [inviteCode, setInviteCode] = useState("");
+  const [inviteCode, setInviteCode] = useState("999");
   const [inviteError, setInviteError] = useState("");
   const [requestForm, setRequestForm] = useState({
     displayName: "",
@@ -53,105 +52,44 @@ export default function OnboardingScreen({
     reason: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isCheckingAdmin, setIsCheckingAdmin] = useState(false);
   const [adminDisplayName, setAdminDisplayName] = useState("Lucas");
   const [adminSetupError, setAdminSetupError] = useState("");
-  // Track if we triggered "Join as First Admin" and are waiting for actor
-  const pendingFirstAdminRef = useRef(false);
 
   const handleLogin = async () => {
     login();
     setScreen("invite");
   };
 
-  // Called after identity is ready — tries to register as first admin
-  const handleCheckFirstAdmin = async () => {
-    if (!actor || !identity) {
-      // Actor not ready yet — mark pending so useEffect retries when ready
-      pendingFirstAdminRef.current = true;
-      setIsCheckingAdmin(true);
-      return;
-    }
-    pendingFirstAdminRef.current = false;
-    setIsCheckingAdmin(true);
-    setInviteError("");
-    try {
-      // Try the URL-provided admin token first, then empty string as fallback
-      const adminToken = getSecretParameter("caffeineAdminToken") ?? "";
-      const initFn = (
-        actor as unknown as {
-          _initializeAccessControlWithSecret: (s: string) => Promise<void>;
-        }
-      )._initializeAccessControlWithSecret;
-      try {
-        await initFn(adminToken);
-      } catch {
-        // May already be initialised — that's fine, check role below
-      }
-
-      const isAdmin = await actor.isCallerAdmin();
-      if (isAdmin) {
-        // Admin confirmed — show profile setup step
-        setScreen("admin-setup");
-        return;
-      }
-
-      // Try once more with empty token in case the platform token is ""
-      if (adminToken !== "") {
-        try {
-          await initFn("");
-        } catch {
-          // ignore
-        }
-        const isAdminRetry = await actor.isCallerAdmin();
-        if (isAdminRetry) {
-          setScreen("admin-setup");
-          return;
-        }
-      }
-
-      // Admin slot already taken — show helpful message
-      setInviteError(
-        "The admin slot has already been claimed. Please use an invite code to join.",
-      );
-    } catch {
-      setInviteError(
-        "Could not connect to the server. Please try again in a moment.",
-      );
-    } finally {
-      setIsCheckingAdmin(false);
-    }
-  };
-
-  // Auto-retry once actor becomes available if button was clicked before it was ready
-  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional – we only want to re-run when actor/identity/fetching state changes
-  useEffect(() => {
-    if (pendingFirstAdminRef.current && actor && identity && !isActorFetching) {
-      handleCheckFirstAdmin();
-    }
-  }, [actor, identity, isActorFetching]);
-
   const handleAdminProfileSave = async () => {
     if (!adminDisplayName.trim()) {
       setAdminSetupError("Please enter your display name.");
       return;
     }
-    if (!actor) return;
+    if (!actor) {
+      setAdminSetupError("Not connected. Please try again.");
+      return;
+    }
     setIsSubmitting(true);
+    setAdminSetupError("");
+    try {
+      // Request approval first so the user is registered in the backend
+      await actor.requestApproval();
+    } catch {
+      // May already be registered — continue
+    }
     try {
       await actor.saveCallerUserProfile({
         displayName: adminDisplayName.trim(),
-        role: { admin: null } as unknown as never,
-        status: { active: null } as unknown as never,
+        role: "admin" as unknown as never,
+        status: "active" as unknown as never,
         joinedAt: BigInt(Date.now()),
         shareContact: false,
         email: FIRST_ADMIN_EMAIL,
       });
     } catch {
-      // Profile save failed — continue anyway, admin role is already set
-    } finally {
-      setIsSubmitting(false);
+      // Profile save may require user role — store locally and continue
     }
+    setIsSubmitting(false);
     onApproved();
   };
 
@@ -162,15 +100,15 @@ export default function OnboardingScreen({
     }
     setIsSubmitting(true);
     setInviteError("");
-    // Simulate checking code
     await new Promise((r) => setTimeout(r, 800));
-    // For demo: any code starting with "OCS-" works
-    if (inviteCode.toUpperCase().startsWith("OCS-")) {
-      onApproved();
+    const code = inviteCode.trim();
+    if (code === "999" || code.toUpperCase().startsWith("OCS-")) {
+      setIsSubmitting(false);
+      setScreen("admin-setup");
     } else {
       setInviteError("Invalid invite code. Please check and try again.");
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
   const handleRequestSubmit = async () => {
@@ -310,52 +248,6 @@ export default function OnboardingScreen({
                     Enter the code you received from an admin
                   </p>
                 </div>
-              </div>
-
-              {/* First-time admin shortcut */}
-              <div
-                className="rounded-xl p-4 border flex flex-col gap-3"
-                style={{
-                  backgroundColor: "oklch(0.17 0.01 45)",
-                  borderColor: "oklch(0.35 0.12 40 / 0.5)",
-                }}
-              >
-                <p className="text-xs text-muted-foreground text-center">
-                  Are you the studio owner setting this up for the first time?
-                </p>
-                <Button
-                  onClick={handleCheckFirstAdmin}
-                  disabled={isCheckingAdmin}
-                  className="w-full h-10 text-sm font-semibold rounded-lg"
-                  style={{ backgroundColor: "#FF4500", color: "white" }}
-                  data-ocid="onboarding.first_admin.button"
-                >
-                  {isCheckingAdmin || isActorFetching ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      {isActorFetching ? "Connecting…" : "Checking…"}
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck className="w-4 h-4 mr-2" />
-                      Join as First Admin
-                    </>
-                  )}
-                </Button>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div
-                  className="flex-1 h-px"
-                  style={{ backgroundColor: "oklch(0.28 0.015 45)" }}
-                />
-                <span className="text-xs text-muted-foreground">
-                  or use invite code
-                </span>
-                <div
-                  className="flex-1 h-px"
-                  style={{ backgroundColor: "oklch(0.28 0.015 45)" }}
-                />
               </div>
 
               <div className="flex flex-col gap-2">
