@@ -1,4 +1,4 @@
-import { AppUserRole, ApprovalStatus, UserStatus } from "@/backend";
+import { AppUserRole, UserStatus } from "@/backend";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,7 @@ import { useInternetIdentity } from "../hooks/useInternetIdentity";
 
 type Screen =
   | "welcome"
+  | "checking"
   | "invite"
   | "profile-setup"
   | "request"
@@ -39,10 +40,9 @@ interface OnboardingScreenProps {
 export default function OnboardingScreen({
   onApproved,
 }: OnboardingScreenProps) {
-  const { login, isLoggingIn, isInitializing, identity } =
-    useInternetIdentity();
+  const { login, isLoggingIn, isInitializing } = useInternetIdentity();
   const { actor } = useActor();
-  const [screen, setScreen] = useState<Screen>(identity ? "invite" : "welcome");
+  const [screen, setScreen] = useState<Screen>("welcome");
   const [inviteCode, setInviteCode] = useState("");
   const [inviteError, setInviteError] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -56,9 +56,47 @@ export default function OnboardingScreen({
     reason: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState("");
 
-  const handleLogin = () => {
-    login();
+  // Login for existing users — check backend after II login
+  const handleLogin = async () => {
+    setLoginError("");
+    await login();
+    setScreen("checking");
+    // Wait briefly for actor to be ready, then check access
+    let attempts = 0;
+    const check = async () => {
+      if (!actor) {
+        if (attempts < 20) {
+          attempts++;
+          setTimeout(check, 300);
+        } else {
+          setLoginError("Could not connect. Please try again.");
+          setScreen("welcome");
+        }
+        return;
+      }
+      try {
+        const [approved, isAdmin] = await Promise.all([
+          actor.isCallerApproved(),
+          actor.isCallerAdmin(),
+        ]);
+        if (approved || isAdmin) {
+          onApproved();
+        } else {
+          // Not registered yet — go to invite flow
+          setScreen("invite");
+        }
+      } catch {
+        setLoginError("Could not verify your account. Please try again.");
+        setScreen("welcome");
+      }
+    };
+    setTimeout(check, 500);
+  };
+
+  const handleJoinWithCode = async () => {
+    await login();
     setScreen("invite");
   };
 
@@ -96,10 +134,7 @@ export default function OnboardingScreen({
     setProfileSetupError("");
     setDisplayNameError("");
     try {
-      // Validate invite code by requesting approval — backend checks code validity
-      // Use code "999" for admin bootstrap, other codes for general members
       await actor.requestApproval();
-      // Save profile with display name and optional avatar
       await actor.saveCallerUserProfile({
         displayName: displayName.trim(),
         role: AppUserRole.musician,
@@ -108,10 +143,6 @@ export default function OnboardingScreen({
         shareContact: false,
         avatarUrl: avatarBase64 ?? undefined,
       });
-      // Check if code "999" grants admin
-      if (inviteCode.trim() === "999") {
-        // Admin bootstrap handled by backend on requestApproval with code 999
-      }
       onApproved();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -120,7 +151,6 @@ export default function OnboardingScreen({
           "Invalid invite code. Please go back and check it.",
         );
       } else if (msg.includes("already") || msg.includes("Already")) {
-        // Already registered — just let them in
         onApproved();
       } else {
         setProfileSetupError("Something went wrong. Please try again.");
@@ -156,7 +186,6 @@ export default function OnboardingScreen({
       className="min-h-screen flex flex-col items-center justify-center p-4"
       style={{ backgroundColor: "oklch(0.13 0.008 50)" }}
     >
-      {/* Background decoration */}
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
@@ -200,51 +229,115 @@ export default function OnboardingScreen({
                 </div>
               </div>
 
-              <div
-                className="w-full rounded-xl p-4 border text-center"
-                style={{
-                  backgroundColor: "oklch(0.17 0.01 45)",
-                  borderColor: "oklch(0.28 0.015 45)",
-                }}
-              >
-                <div className="text-2xl mb-2">🔒</div>
-                <p className="text-sm text-foreground/80 leading-relaxed">
-                  This is an{" "}
-                  <strong className="text-foreground">invitation-only</strong>{" "}
-                  space for staff, musicians, and clients of Old Chapel Studios.
-                </p>
-              </div>
+              {loginError && (
+                <div
+                  className="w-full rounded-lg p-3 border text-sm text-red-400 text-center"
+                  style={{
+                    backgroundColor: "oklch(0.18 0.02 15)",
+                    borderColor: "oklch(0.35 0.06 15)",
+                  }}
+                  data-ocid="onboarding.login.error_state"
+                >
+                  {loginError}
+                </div>
+              )}
 
               <div className="w-full flex flex-col gap-3">
+                {/* Primary: existing members */}
                 <Button
                   onClick={handleLogin}
                   disabled={isLoggingIn || isInitializing}
                   className="w-full h-12 text-base font-semibold rounded-xl shadow-orange"
                   style={{ backgroundColor: "#FF4500", color: "white" }}
-                  data-ocid="onboarding.primary_button"
+                  data-ocid="onboarding.login.primary_button"
                 >
-                  <LogIn className="w-4 h-4 mr-2" />
-                  {isLoggingIn
-                    ? "Connecting…"
-                    : "Sign in with Internet Identity"}
+                  {isLoggingIn ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Connecting…
+                    </>
+                  ) : (
+                    <>
+                      <LogIn className="w-4 h-4 mr-2" />
+                      Login
+                    </>
+                  )}
                 </Button>
-                <p className="text-center text-xs text-muted-foreground">
-                  Don't have an account?{" "}
-                  <button
-                    type="button"
-                    onClick={() => setScreen("request")}
-                    className="text-primary hover:underline font-medium"
-                    data-ocid="onboarding.request_join.button"
-                  >
+
+                <div
+                  className="flex items-center gap-3"
+                  style={{ color: "oklch(0.50 0.01 60)" }}
+                >
+                  <div
+                    className="flex-1 h-px"
+                    style={{ backgroundColor: "oklch(0.28 0.015 45)" }}
+                  />
+                  <span className="text-xs">new here?</span>
+                  <div
+                    className="flex-1 h-px"
+                    style={{ backgroundColor: "oklch(0.28 0.015 45)" }}
+                  />
+                </div>
+
+                {/* Secondary: new users with invite code */}
+                <Button
+                  onClick={handleJoinWithCode}
+                  disabled={isLoggingIn || isInitializing}
+                  variant="outline"
+                  className="w-full h-11 rounded-xl"
+                  style={{
+                    borderColor: "oklch(0.35 0.015 45)",
+                    backgroundColor: "transparent",
+                    color: "oklch(0.80 0.01 60)",
+                  }}
+                  data-ocid="onboarding.join.secondary_button"
+                >
+                  <KeyRound className="w-4 h-4 mr-2" />
+                  Join with Invite Code
+                </Button>
+
+                <button
+                  type="button"
+                  onClick={() => setScreen("request")}
+                  className="text-center text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  data-ocid="onboarding.request_join.button"
+                >
+                  Don't have a code?{" "}
+                  <span className="font-medium" style={{ color: "#FF4500" }}>
                     Request to Join
-                  </button>
-                </p>
+                  </span>
+                </button>
               </div>
 
               <p className="text-center text-xs text-muted-foreground/60 max-w-xs">
                 Your identity is secured by Internet Identity. No passwords, no
                 tracking.
               </p>
+            </motion.div>
+          )}
+
+          {/* Checking existing account */}
+          {screen === "checking" && (
+            <motion.div
+              key="checking"
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              transition={{ duration: 0.3 }}
+              className="flex flex-col items-center gap-6 py-16"
+            >
+              <Loader2
+                className="w-10 h-10 animate-spin"
+                style={{ color: "#FF4500" }}
+              />
+              <div className="text-center">
+                <p className="font-semibold text-foreground">
+                  Checking your account…
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Just a moment
+                </p>
+              </div>
             </motion.div>
           )}
 
@@ -375,7 +468,6 @@ export default function OnboardingScreen({
               </div>
 
               <div className="flex flex-col gap-5">
-                {/* Avatar upload */}
                 <div className="flex flex-col items-center gap-2">
                   <Label className="text-sm font-medium self-start">
                     Profile Picture{" "}
@@ -420,7 +512,6 @@ export default function OnboardingScreen({
                   </p>
                 </div>
 
-                {/* Display name */}
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="display-name" className="text-sm font-medium">
                     Your Name <span style={{ color: "#FF4500" }}>*</span>
