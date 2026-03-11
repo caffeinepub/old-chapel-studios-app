@@ -24,7 +24,15 @@ import { useEffect, useRef, useState } from "react";
 const REACTIONS = ["👍", "❤️", "😂", "🔥", "🎵"];
 
 export default function ChatsPage() {
-  const [groups, setGroups] = useState<ChatGroup[]>(INITIAL_CHAT_GROUPS);
+  const [groups, setGroups] = useState<ChatGroup[]>(
+    INITIAL_CHAT_GROUPS.map((g) => ({
+      ...g,
+      messages: [],
+      lastMessage: "No messages yet",
+      lastTimestamp: "",
+      unreadCount: 0,
+    })),
+  );
   const [activeGroup, setActiveGroup] = useState<ChatGroup | null>(null);
   const [messageInput, setMessageInput] = useState("");
   const [showNewGroup, setShowNewGroup] = useState(false);

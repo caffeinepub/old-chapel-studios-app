@@ -9,8 +9,6 @@ import {
   CURRENT_USER,
   DAYS,
   INITIAL_AVAILABILITY,
-  INITIAL_EVENTS,
-  INITIAL_POSTS,
   type Post,
   ROLE_COLORS,
   ROLE_LABELS,
@@ -32,7 +30,7 @@ const STATUS_COLORS = {
 };
 
 export default function HomePage() {
-  const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [newPost, setNewPost] = useState({
     title: "",
@@ -85,8 +83,6 @@ export default function HomePage() {
     if (!a.pinned && b.pinned) return 1;
     return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
   });
-
-  const upcomingEvents = INITIAL_EVENTS.slice(0, 2);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -197,43 +193,6 @@ export default function HomePage() {
             >
               Book Now via Jammed →
             </a>
-          </div>
-
-          {/* Upcoming Events */}
-          <div className="mx-4 mt-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-              Upcoming Events
-            </h3>
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-              {upcomingEvents.map((event) => (
-                <div
-                  key={event.id}
-                  className="flex-shrink-0 rounded-xl p-3 border min-w-[160px] max-w-[180px]"
-                  style={{
-                    backgroundColor: "oklch(0.17 0.01 45)",
-                    borderColor: "oklch(0.28 0.015 45)",
-                    borderLeft: `3px solid ${event.color}`,
-                  }}
-                >
-                  <p className="text-sm font-semibold text-foreground truncate">
-                    {event.title}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {new Date(event.startDate).toLocaleDateString("en-GB", {
-                      weekday: "short",
-                      day: "numeric",
-                      month: "short",
-                    })}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(event.startDate).toLocaleTimeString("en-GB", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </div>
-              ))}
-            </div>
           </div>
 
           {/* Feed Header */}

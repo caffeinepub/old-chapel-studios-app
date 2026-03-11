@@ -22,7 +22,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 
 type Screen =
@@ -58,6 +58,12 @@ export default function OnboardingScreen({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState("");
 
+  // Keep a ref to always have the latest actor value in async closures
+  const actorRef = useRef(actor);
+  useEffect(() => {
+    actorRef.current = actor;
+  }, [actor]);
+
   // Login for existing users — check backend after II login
   const handleLogin = async () => {
     setLoginError("");
@@ -66,7 +72,8 @@ export default function OnboardingScreen({
     // Wait briefly for actor to be ready, then check access
     let attempts = 0;
     const check = async () => {
-      if (!actor) {
+      const currentActor = actorRef.current;
+      if (!currentActor) {
         if (attempts < 20) {
           attempts++;
           setTimeout(check, 300);
@@ -78,8 +85,8 @@ export default function OnboardingScreen({
       }
       try {
         const [approved, isAdmin] = await Promise.all([
-          actor.isCallerApproved(),
-          actor.isCallerAdmin(),
+          currentActor.isCallerApproved(),
+          currentActor.isCallerAdmin(),
         ]);
         if (approved || isAdmin) {
           onApproved();
@@ -126,7 +133,8 @@ export default function OnboardingScreen({
       setDisplayNameError("Your name is required to continue.");
       return;
     }
-    if (!actor) {
+    const currentActor = actorRef.current;
+    if (!currentActor) {
       setProfileSetupError("Not connected. Please try again.");
       return;
     }
@@ -134,8 +142,8 @@ export default function OnboardingScreen({
     setProfileSetupError("");
     setDisplayNameError("");
     try {
-      await actor.requestApproval();
-      await actor.saveCallerUserProfile({
+      await currentActor.requestApproval();
+      await currentActor.saveCallerUserProfile({
         displayName: displayName.trim(),
         role: AppUserRole.musician,
         status: UserStatus.active,

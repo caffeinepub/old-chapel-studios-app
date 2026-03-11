@@ -4,18 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-  INITIAL_POLLS,
-  type Poll,
-  type PollOption,
-  getUserById,
-} from "@/data/mockData";
+import { type Poll, type PollOption, getUserById } from "@/data/mockData";
 import { BarChart3, Check, Plus, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 
 export default function PollsPage() {
-  const [polls, setPolls] = useState<Poll[]>(INITIAL_POLLS);
+  const [polls, setPolls] = useState<Poll[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [pendingVotes, setPendingVotes] = useState<Record<string, number[]>>(
     {},
