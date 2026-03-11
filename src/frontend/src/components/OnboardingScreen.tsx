@@ -40,7 +40,8 @@ interface OnboardingScreenProps {
 export default function OnboardingScreen({
   onApproved,
 }: OnboardingScreenProps) {
-  const { login, isLoggingIn, isInitializing } = useInternetIdentity();
+  const { login, isLoggingIn, isInitializing, loginStatus } =
+    useInternetIdentity();
   const { actor } = useActor();
   const [screen, setScreen] = useState<Screen>("welcome");
   const [inviteCode, setInviteCode] = useState("");
@@ -64,29 +65,25 @@ export default function OnboardingScreen({
     actorRef.current = actor;
   }, [actor]);
 
-  // Login for existing users — check backend after II login
-  const handleLogin = async () => {
-    setLoginError("");
-    await login();
-    setScreen("checking");
-    // Wait briefly for actor to be ready, then check access
-    let attempts = 0;
-    const check = async () => {
-      const currentActor = actorRef.current;
-      if (!currentActor) {
-        if (attempts < 20) {
-          attempts++;
-          setTimeout(check, 300);
-        } else {
-          setLoginError("Could not connect. Please try again.");
-          setScreen("welcome");
-        }
-        return;
-      }
+  // React to actor becoming available after login
+  useEffect(() => {
+    if (screen !== "checking") return;
+
+    // If login failed or was cancelled
+    if (loginStatus === "loginError") {
+      setLoginError("Login failed. Please try again.");
+      setScreen("welcome");
+      return;
+    }
+
+    // Wait for actor to be ready
+    if (!actor) return;
+
+    const checkAccess = async () => {
       try {
         const [approved, isAdmin] = await Promise.all([
-          currentActor.isCallerApproved(),
-          currentActor.isCallerAdmin(),
+          actor.isCallerApproved(),
+          actor.isCallerAdmin(),
         ]);
         if (approved || isAdmin) {
           onApproved();
@@ -99,7 +96,15 @@ export default function OnboardingScreen({
         setScreen("welcome");
       }
     };
-    setTimeout(check, 500);
+
+    checkAccess();
+  }, [screen, actor, loginStatus, onApproved]);
+
+  // Login for existing users — trigger II login then wait for actor via effect
+  const handleLogin = () => {
+    setLoginError("");
+    login();
+    setScreen("checking");
   };
 
   const handleJoinWithCode = async () => {
