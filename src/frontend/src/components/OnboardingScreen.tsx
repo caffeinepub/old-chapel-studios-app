@@ -40,7 +40,7 @@ interface OnboardingScreenProps {
 export default function OnboardingScreen({
   onApproved,
 }: OnboardingScreenProps) {
-  const { login, isLoggingIn, isInitializing, loginStatus } =
+  const { login, isLoggingIn, isInitializing, loginStatus, identity } =
     useInternetIdentity();
   const { actor } = useActor();
   const [screen, setScreen] = useState<Screen>("welcome");
@@ -58,6 +58,7 @@ export default function OnboardingScreen({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState("");
+  const loginInitiatedRef = useRef(false);
 
   // Keep a ref to always have the latest actor value in async closures
   const actorRef = useRef(actor);
@@ -69,8 +70,17 @@ export default function OnboardingScreen({
   useEffect(() => {
     if (screen !== "checking") return;
 
+    // Track when login transitions to in-progress — clear the stale-error guard
+    if (loginStatus === "logging-in") {
+      loginInitiatedRef.current = false;
+      return;
+    }
+
     // If login failed or was cancelled
     if (loginStatus === "loginError") {
+      // If loginInitiatedRef is still true, the loginStatus hasn't changed yet
+      // from before login() was called — ignore this stale error
+      if (loginInitiatedRef.current) return;
       setLoginError("Login failed. Please try again.");
       setScreen("welcome");
       return;
@@ -103,6 +113,12 @@ export default function OnboardingScreen({
   // Login for existing users — trigger II login then wait for actor via effect
   const handleLogin = () => {
     setLoginError("");
+    if (identity) {
+      // Already authenticated — skip login(), just check access
+      setScreen("checking");
+      return;
+    }
+    loginInitiatedRef.current = true;
     login();
     setScreen("checking");
   };
