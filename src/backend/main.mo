@@ -57,6 +57,39 @@ actor {
     };
   };
 
+  // Check if an admin has already been bootstrapped
+  public query func isAdminAssigned() : async Bool {
+    accessControlState.adminAssigned;
+  };
+
+  // Bootstrap the first admin — only works before any admin exists
+  public shared ({ caller }) func bootstrapAdmin(displayName : Text, avatarUrl : ?Text) : async () {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Anonymous callers cannot register");
+    };
+    if (accessControlState.adminAssigned) {
+      Runtime.trap("An admin already exists");
+    };
+    switch (accessControlState.userRoles.get(caller)) {
+      case (?_) { Runtime.trap("Already registered") };
+      case (null) {};
+    };
+    accessControlState.userRoles.add(caller, #admin);
+    accessControlState.adminAssigned := true;
+    UserApproval.setApproval(approvalState, caller, #approved);
+    let profile : UserProfile = {
+      displayName = displayName;
+      avatarUrl = avatarUrl;
+      role = #admin;
+      status = #active;
+      joinedAt = Time.now();
+      shareContact = false;
+      email = null;
+      phone = null;
+    };
+    userProfiles.add(caller, profile);
+  };
+
   // Register a new user with an invite code — validates code, saves profile, grants access
   public shared ({ caller }) func registerWithInviteCode(code : Text, displayName : Text, avatarUrl : ?Text) : async () {
     if (caller.isAnonymous()) {
@@ -66,25 +99,6 @@ actor {
     switch (accessControlState.userRoles.get(caller)) {
       case (?_) { Runtime.trap("Already registered") };
       case (null) {};
-    };
-
-    // Bootstrap admin: code "999", only works before any admin is assigned
-    if (code == "999" and not accessControlState.adminAssigned) {
-      accessControlState.userRoles.add(caller, #admin);
-      accessControlState.adminAssigned := true;
-      UserApproval.setApproval(approvalState, caller, #approved);
-      let profile : UserProfile = {
-        displayName = displayName;
-        avatarUrl = avatarUrl;
-        role = #admin;
-        status = #active;
-        joinedAt = Time.now();
-        shareContact = false;
-        email = null;
-        phone = null;
-      };
-      userProfiles.add(caller, profile);
-      return;
     };
 
     // Normal invite code flow

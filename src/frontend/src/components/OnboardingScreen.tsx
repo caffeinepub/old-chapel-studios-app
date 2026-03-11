@@ -18,6 +18,7 @@ import {
   Loader2,
   LogIn,
   Music,
+  Shield,
   User,
   UserPlus,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import { useInternetIdentity } from "../hooks/useInternetIdentity";
 type Screen =
   | "welcome"
   | "checking"
+  | "bootstrap-admin"
   | "invite"
   | "profile-setup"
   | "request"
@@ -52,6 +54,7 @@ export default function OnboardingScreen({
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarBase64, setAvatarBase64] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const bootstrapAvatarInputRef = useRef<HTMLInputElement>(null);
   const [requestForm, setRequestForm] = useState({
     displayName: "",
     reason: "",
@@ -70,23 +73,18 @@ export default function OnboardingScreen({
   useEffect(() => {
     if (screen !== "checking") return;
 
-    // Track when login transitions to in-progress — clear the stale-error guard
     if (loginStatus === "logging-in") {
       loginInitiatedRef.current = false;
       return;
     }
 
-    // If login failed or was cancelled
     if (loginStatus === "loginError") {
-      // If loginInitiatedRef is still true, the loginStatus hasn't changed yet
-      // from before login() was called — ignore this stale error
       if (loginInitiatedRef.current) return;
       setLoginError("Login failed. Please try again.");
       setScreen("welcome");
       return;
     }
 
-    // Wait for actor to be ready
     if (!actor) return;
 
     const checkAccess = async () => {
@@ -97,8 +95,21 @@ export default function OnboardingScreen({
         ]);
         if (approved || isAdmin) {
           onApproved();
+          return;
+        }
+        // Not registered yet — check if an admin already exists
+        let adminAssigned = false;
+        try {
+          adminAssigned = await (actor as any).isAdminAssigned();
+        } catch {
+          // If the method doesn't exist, assume admin is not yet assigned
+          adminAssigned = false;
+        }
+        if (!adminAssigned) {
+          // First ever login — bootstrap this principal as admin
+          setScreen("bootstrap-admin");
         } else {
-          // Not registered yet — go to invite flow
+          // Admin exists — require invite code
           setScreen("invite");
         }
       } catch {
@@ -110,11 +121,9 @@ export default function OnboardingScreen({
     checkAccess();
   }, [screen, actor, loginStatus, onApproved]);
 
-  // Login for existing users — trigger II login then wait for actor via effect
   const handleLogin = () => {
     setLoginError("");
     if (identity) {
-      // Already authenticated — skip login(), just check access
       setScreen("checking");
       return;
     }
@@ -147,6 +156,40 @@ export default function OnboardingScreen({
     }
     setInviteError("");
     setScreen("profile-setup");
+  };
+
+  const handleBootstrapAdmin = async () => {
+    if (!displayName.trim()) {
+      setDisplayNameError("Your name is required to activate your account.");
+      return;
+    }
+    const currentActor = actorRef.current;
+    if (!currentActor) {
+      setProfileSetupError("Not connected. Please try again.");
+      return;
+    }
+    setIsSubmitting(true);
+    setProfileSetupError("");
+    setDisplayNameError("");
+    try {
+      await (currentActor as any).bootstrapAdmin(
+        displayName.trim(),
+        avatarBase64 ?? undefined,
+      );
+      onApproved();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("already") || msg.includes("Already")) {
+        // Admin already bootstrapped — try logging in normally
+        onApproved();
+      } else {
+        setProfileSetupError(
+          "Could not activate admin account. Please try again.",
+        );
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleProfileSetup = async () => {
@@ -272,7 +315,6 @@ export default function OnboardingScreen({
               )}
 
               <div className="w-full flex flex-col gap-3">
-                {/* Primary: existing members */}
                 <Button
                   onClick={handleLogin}
                   disabled={isLoggingIn || isInitializing}
@@ -308,7 +350,6 @@ export default function OnboardingScreen({
                   />
                 </div>
 
-                {/* Secondary: new users with invite code */}
                 <Button
                   onClick={handleJoinWithCode}
                   disabled={isLoggingIn || isInitializing}
@@ -367,6 +408,186 @@ export default function OnboardingScreen({
                   Just a moment
                 </p>
               </div>
+            </motion.div>
+          )}
+
+          {/* Bootstrap Admin Screen — first ever login */}
+          {screen === "bootstrap-admin" && (
+            <motion.div
+              key="bootstrap-admin"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.35 }}
+              className="flex flex-col gap-6"
+            >
+              <div className="flex flex-col items-center gap-3">
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{
+                    delay: 0.1,
+                    duration: 0.5,
+                    ease: [0.34, 1.56, 0.64, 1],
+                  }}
+                  className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                  style={{
+                    background:
+                      "linear-gradient(135deg, oklch(0.62 0.22 40 / 0.25) 0%, oklch(0.62 0.22 40 / 0.10) 100%)",
+                    border: "1px solid oklch(0.62 0.22 40 / 0.35)",
+                  }}
+                >
+                  <Shield className="w-8 h-8" style={{ color: "#FF4500" }} />
+                </motion.div>
+                <div className="text-center">
+                  <h2
+                    className="text-2xl font-bold"
+                    style={{ fontFamily: "'Outfit', sans-serif" }}
+                  >
+                    You're the First Admin
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Set your name to activate your admin account
+                  </p>
+                </div>
+                <div
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold"
+                  style={{
+                    backgroundColor: "oklch(0.62 0.22 40 / 0.15)",
+                    color: "#FFA500",
+                    border: "1px solid oklch(0.62 0.22 40 / 0.25)",
+                  }}
+                >
+                  <Shield className="w-3 h-3" />
+                  Admin Role
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-col items-center gap-2">
+                  <Label className="text-sm font-medium self-start">
+                    Profile Picture{" "}
+                    <span className="text-muted-foreground font-normal">
+                      (optional)
+                    </span>
+                  </Label>
+                  <button
+                    type="button"
+                    onClick={() => bootstrapAvatarInputRef.current?.click()}
+                    className="w-20 h-20 rounded-full border-2 flex items-center justify-center overflow-hidden transition-opacity hover:opacity-80 cursor-pointer"
+                    style={{
+                      borderColor: "#FF4500",
+                      backgroundColor: "oklch(0.20 0.01 45)",
+                    }}
+                    data-ocid="onboarding.bootstrap.upload_button"
+                    aria-label="Upload profile picture"
+                  >
+                    {avatarPreview ? (
+                      <img
+                        src={avatarPreview}
+                        alt="Avatar preview"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <Camera
+                        className="w-8 h-8"
+                        style={{ color: "#FF4500" }}
+                      />
+                    )}
+                  </button>
+                  <input
+                    ref={bootstrapAvatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarChange}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Tap to upload a photo
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <Label
+                    htmlFor="bootstrap-name"
+                    className="text-sm font-medium"
+                  >
+                    Your Name <span style={{ color: "#FF4500" }}>*</span>
+                  </Label>
+                  <Input
+                    id="bootstrap-name"
+                    placeholder="e.g. Studio Manager"
+                    value={displayName}
+                    onChange={(e) => {
+                      setDisplayName(e.target.value);
+                      setDisplayNameError("");
+                    }}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" && handleBootstrapAdmin()
+                    }
+                    className="h-11 rounded-xl"
+                    style={{
+                      ...inputStyle,
+                      borderColor: displayNameError
+                        ? "#ef4444"
+                        : inputStyle.borderColor,
+                    }}
+                    {...inputProps}
+                    data-ocid="onboarding.bootstrap.input"
+                  />
+                  {displayNameError && (
+                    <p
+                      className="text-xs text-red-400"
+                      data-ocid="onboarding.bootstrap.error_state"
+                    >
+                      {displayNameError}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {profileSetupError && (
+                <div
+                  className="rounded-lg p-3 border text-sm text-red-400"
+                  style={{
+                    backgroundColor: "oklch(0.18 0.02 15)",
+                    borderColor: "oklch(0.35 0.06 15)",
+                  }}
+                  data-ocid="onboarding.bootstrap.error_state"
+                >
+                  {profileSetupError}
+                </div>
+              )}
+
+              <Button
+                onClick={handleBootstrapAdmin}
+                disabled={isSubmitting || !displayName.trim()}
+                className="w-full h-12 text-base font-semibold rounded-xl"
+                style={{ backgroundColor: "#FF4500", color: "white" }}
+                data-ocid="onboarding.bootstrap.submit_button"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Activating…
+                  </>
+                ) : (
+                  <>
+                    <Shield className="w-4 h-4 mr-2" />
+                    Activate Admin Account
+                  </>
+                )}
+              </Button>
+
+              <button
+                type="button"
+                onClick={() => setScreen("welcome")}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mx-auto"
+                data-ocid="onboarding.bootstrap.back_button"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Back to welcome
+              </button>
             </motion.div>
           )}
 
