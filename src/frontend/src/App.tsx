@@ -33,7 +33,14 @@ export default function App() {
     );
   };
 
-  // Watch identity and actor changes to determine access
+  // Handle sign out: if identity is lost while in app, go back to onboarding
+  useEffect(() => {
+    if (appState === "app" && !identity) {
+      setAppState("onboarding");
+    }
+  }, [identity, appState]);
+
+  // Watch identity and actor changes to determine access (during checking/onboarding)
   useEffect(() => {
     if (appState === "splash" || appState === "app") return;
     if (!identity) {

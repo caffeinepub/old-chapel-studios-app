@@ -50,7 +50,7 @@ type SettingsSection =
   | "admin-gear";
 
 export default function SettingsPage() {
-  const { clear } = useInternetIdentity();
+  const { clear, identity } = useInternetIdentity();
   const { actor } = useActor();
   const [section, setSection] = useState<SettingsSection>("main");
   const [currentUser, setCurrentUser] = useState(CURRENT_USER);
@@ -81,6 +81,34 @@ export default function SettingsPage() {
     shareContact: false,
   });
 
+  // Load real profile from backend
+  useEffect(() => {
+    if (actor) {
+      actor
+        .getCallerUserProfile()
+        .then((profile) => {
+          if (profile) {
+            setCurrentUser((prev) => ({
+              ...prev,
+              displayName: profile.displayName,
+              email: profile.email ?? "",
+              role: profile.role as MockUser["role"],
+            }));
+            setEditForm((prev) => ({
+              ...prev,
+              displayName: profile.displayName,
+              email: profile.email ?? "",
+              phone: profile.phone ?? "",
+              shareContact: profile.shareContact,
+            }));
+          }
+        })
+        .catch(() => {
+          /* keep mock fallback */
+        });
+    }
+  }, [actor]);
+
   // Check admin status from backend
   useEffect(() => {
     if (actor) {
@@ -90,6 +118,13 @@ export default function SettingsPage() {
         .catch(() => setIsAdmin(true));
     }
   }, [actor]);
+
+  // Derive a short display of the principal
+  const principalText = identity ? identity.getPrincipal().toText() : "";
+  const principalShort =
+    principalText.length > 20
+      ? `${principalText.slice(0, 12)}...${principalText.slice(-6)}`
+      : principalText;
 
   const handleGenerateInvite = async () => {
     setGeneratingCode(true);
@@ -285,6 +320,29 @@ export default function SettingsPage() {
                       }}
                     />
                   </div>
+
+                  {principalText && (
+                    <div className="flex flex-col gap-1.5">
+                      <Label className="text-sm font-medium">
+                        Internet Identity
+                      </Label>
+                      <div
+                        className="h-11 rounded-xl flex items-center px-3 font-mono text-xs text-muted-foreground select-all overflow-x-auto"
+                        style={{
+                          backgroundColor: "oklch(0.17 0.008 45)",
+                          borderColor: "oklch(0.25 0.01 45)",
+                          border: "1px solid oklch(0.25 0.01 45)",
+                        }}
+                        title={principalText}
+                      >
+                        {principalText}
+                      </div>
+                      <p className="text-xs text-muted-foreground/50">
+                        Your unique identity on the Internet Computer.
+                        Read-only.
+                      </p>
+                    </div>
+                  )}
 
                   <div className="flex flex-col gap-1.5">
                     <Label className="text-sm font-medium">
@@ -681,10 +739,15 @@ export default function SettingsPage() {
                 >
                   {ROLE_LABELS[currentUser.role]}
                 </span>
-                <span className="text-xs text-muted-foreground truncate">
-                  {currentUser.email}
-                </span>
               </div>
+              {principalShort && (
+                <p
+                  className="text-xs text-muted-foreground/60 font-mono mt-0.5 truncate"
+                  title={principalText}
+                >
+                  {principalShort}
+                </p>
+              )}
             </div>
             <button
               type="button"
