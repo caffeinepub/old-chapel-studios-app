@@ -48,6 +48,70 @@ actor {
 
   let userProfiles = Map.empty<Principal, UserProfile>();
 
+  // Check if the caller already has a registered account (for returning login)
+  public query ({ caller }) func isCallerRegistered() : async Bool {
+    if (caller.isAnonymous()) { return false };
+    switch (accessControlState.userRoles.get(caller)) {
+      case (?_) { true };
+      case (null) { false };
+    };
+  };
+
+  // Register a new user with an invite code — validates code, saves profile, grants access
+  public shared ({ caller }) func registerWithInviteCode(code : Text, displayName : Text, avatarUrl : ?Text) : async () {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Anonymous callers cannot register");
+    };
+    // Prevent double-registration
+    switch (accessControlState.userRoles.get(caller)) {
+      case (?_) { Runtime.trap("Already registered") };
+      case (null) {};
+    };
+
+    // Bootstrap admin: code "999", only works before any admin is assigned
+    if (code == "999" and not accessControlState.adminAssigned) {
+      accessControlState.userRoles.add(caller, #admin);
+      accessControlState.adminAssigned := true;
+      UserApproval.setApproval(approvalState, caller, #approved);
+      let profile : UserProfile = {
+        displayName = displayName;
+        avatarUrl = avatarUrl;
+        role = #admin;
+        status = #active;
+        joinedAt = Time.now();
+        shareContact = false;
+        email = null;
+        phone = null;
+      };
+      userProfiles.add(caller, profile);
+      return;
+    };
+
+    // Normal invite code flow
+    switch (inviteState.inviteCodes.get(code)) {
+      case (null) { Runtime.trap("Invalid invite code") };
+      case (?invite) {
+        if (invite.used) { Runtime.trap("Invite code already used") };
+        // Mark code as used
+        inviteState.inviteCodes.add(code, { invite with used = true });
+        // Grant user role and approve
+        accessControlState.userRoles.add(caller, #user);
+        UserApproval.setApproval(approvalState, caller, #approved);
+        let profile : UserProfile = {
+          displayName = displayName;
+          avatarUrl = avatarUrl;
+          role = #musician;
+          status = #active;
+          joinedAt = Time.now();
+          shareContact = false;
+          email = null;
+          phone = null;
+        };
+        userProfiles.add(caller, profile);
+      };
+    };
+  };
+
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
       Runtime.trap("Unauthorized: Only users can view profiles");
@@ -100,7 +164,13 @@ actor {
   };
 
   public query ({ caller }) func isCallerApproved() : async Bool {
-    AccessControl.hasPermission(accessControlState, caller, #admin) or UserApproval.isApproved(approvalState, caller);
+    if (caller.isAnonymous()) { return false };
+    switch (accessControlState.userRoles.get(caller)) {
+      case (null) { false };
+      case (?_) {
+        AccessControl.hasPermission(accessControlState, caller, #admin) or UserApproval.isApproved(approvalState, caller);
+      };
+    };
   };
 
   public shared ({ caller }) func requestApproval() : async () {

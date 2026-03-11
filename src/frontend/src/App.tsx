@@ -2,7 +2,6 @@ import BottomNav, { type TabId } from "@/components/BottomNav";
 import OnboardingScreen from "@/components/OnboardingScreen";
 import SplashScreen from "@/components/SplashScreen";
 import { Toaster } from "@/components/ui/sonner";
-import { INITIAL_CHAT_GROUPS } from "@/data/mockData";
 import { useActor } from "@/hooks/useActor";
 import { useInternetIdentity } from "@/hooks/useInternetIdentity";
 import AvailabilityPage from "@/pages/AvailabilityPage";
@@ -23,11 +22,6 @@ export default function App() {
   const { identity, isInitializing } = useInternetIdentity();
   const { actor } = useActor();
 
-  const chatUnreadCount = INITIAL_CHAT_GROUPS.reduce(
-    (sum, g) => sum + g.unreadCount,
-    0,
-  );
-
   // Once splash is done, check auth status
   const handleSplashComplete = () => {
     setAppState(
@@ -39,38 +33,36 @@ export default function App() {
     );
   };
 
-  // Watch identity changes
+  // Watch identity and actor changes to determine access
   useEffect(() => {
     if (appState === "splash" || appState === "app") return;
-
     if (!identity) {
       setAppState("onboarding");
       return;
     }
+    if (!actor) {
+      setAppState("onboarding");
+      return;
+    }
 
-    // Check if user is approved or admin
-    if (actor) {
-      const checkAccess = async () => {
-        try {
-          const [approved, isAdmin] = await Promise.all([
-            actor.isCallerApproved(),
-            actor.isCallerAdmin(),
-          ]);
-          if (approved || isAdmin) {
-            setAppState("app");
-          } else {
-            setAppState("onboarding");
-          }
-        } catch {
-          // User not yet registered — show onboarding so they can join
+    const checkAccess = async () => {
+      try {
+        const [approved, isAdmin] = await Promise.all([
+          actor.isCallerApproved(),
+          actor.isCallerAdmin(),
+        ]);
+        if (approved || isAdmin) {
+          setAppState("app");
+        } else {
           setAppState("onboarding");
         }
-      };
-      checkAccess();
-    } else {
-      // No actor yet — show onboarding
-      setAppState("onboarding");
-    }
+      } catch {
+        // Not yet registered — show onboarding
+        setAppState("onboarding");
+      }
+    };
+
+    checkAccess();
   }, [identity, actor, appState]);
 
   const handleApproved = () => {
@@ -115,7 +107,6 @@ export default function App() {
             transition={{ duration: 0.3 }}
             className="min-h-screen"
           >
-            {/* Tab Content */}
             <div className="relative">
               <AnimatePresence mode="wait">
                 {activeTab === "home" && (
@@ -198,11 +189,10 @@ export default function App() {
               </AnimatePresence>
             </div>
 
-            {/* Bottom Navigation */}
             <BottomNav
               activeTab={activeTab}
               onTabChange={setActiveTab}
-              chatUnreadCount={chatUnreadCount}
+              chatUnreadCount={0}
             />
           </motion.div>
         )}
