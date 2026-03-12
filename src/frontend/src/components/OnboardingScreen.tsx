@@ -172,10 +172,9 @@ export default function OnboardingScreen({
     setProfileSetupError("");
     setDisplayNameError("");
     try {
-      await (currentActor as any).bootstrapAdmin(
-        displayName.trim(),
-        avatarBase64 ?? undefined,
-      );
+      // Candid optional: [] means None, [value] means Some(value)
+      const avatarArg: [] | [string] = avatarBase64 ? [avatarBase64] : [];
+      await (currentActor as any).bootstrapAdmin(displayName.trim(), avatarArg);
       onApproved();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -214,6 +213,8 @@ export default function OnboardingScreen({
         joinedAt: BigInt(Date.now()),
         shareContact: false,
         avatarUrl: avatarBase64 ?? undefined,
+        email: undefined,
+        phone: undefined,
       });
       onApproved();
     } catch (err: unknown) {
