@@ -201,6 +201,7 @@ export interface backendInterface {
     isCallerRegistered(): Promise<boolean>;
     listApprovals(): Promise<Array<UserApprovalInfo>>;
     postMessage(channelId: string, content: string): Promise<bigint>;
+    register(displayName: string, avatarUrl: string | null): Promise<void>;
     registerWithInviteCode(code: string, displayName: string, avatarUrl: string | null): Promise<void>;
     requestApproval(): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
@@ -618,6 +619,21 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async register(arg0: string, arg1: string | null): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.register(arg0, to_candid_opt_n10(this._uploadFile, this._downloadFile, arg1));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.register(arg0, to_candid_opt_n10(this._uploadFile, this._downloadFile, arg1));
+            return result;
+        }
+    }
+
     async registerWithInviteCode(arg0: string, arg1: string, arg2: string | null): Promise<void> {
         if (this.processError) {
             try {

@@ -126,6 +126,7 @@ export interface _SERVICE {
   'isCallerRegistered' : ActorMethod<[], boolean>,
   'listApprovals' : ActorMethod<[], Array<UserApprovalInfo>>,
   'postMessage' : ActorMethod<[string, string], bigint>,
+  'register' : ActorMethod<[string, [] | [string]], undefined>,
   'registerWithInviteCode' : ActorMethod<
     [string, string, [] | [string]],
     undefined

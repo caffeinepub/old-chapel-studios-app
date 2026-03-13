@@ -101,6 +101,7 @@ export interface backendInterface {
     isCallerRegistered(): Promise<boolean>;
     listApprovals(): Promise<Array<UserApprovalInfo>>;
     postMessage(channelId: string, content: string): Promise<bigint>;
+    register(displayName: string, avatarUrl: string | null): Promise<void>;
     registerWithInviteCode(code: string, displayName: string, avatarUrl: string | null): Promise<void>;
     requestApproval(): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;

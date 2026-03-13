@@ -22,7 +22,6 @@ export default function App() {
   const { identity, isInitializing } = useInternetIdentity();
   const { actor } = useActor();
 
-  // Once splash is done, check auth status
   const handleSplashComplete = () => {
     setAppState(
       isInitializing
@@ -33,14 +32,12 @@ export default function App() {
     );
   };
 
-  // Handle sign out: if identity is lost while in app, go back to onboarding
   useEffect(() => {
     if (appState === "app" && !identity) {
       setAppState("onboarding");
     }
   }, [identity, appState]);
 
-  // Watch identity and actor changes to determine access (during checking/onboarding)
   useEffect(() => {
     if (appState === "splash" || appState === "app") return;
     if (!identity) {
@@ -54,17 +51,13 @@ export default function App() {
 
     const checkAccess = async () => {
       try {
-        const [approved, isAdmin] = await Promise.all([
-          actor.isCallerApproved(),
-          actor.isCallerAdmin(),
-        ]);
-        if (approved || isAdmin) {
+        const approved = await actor.isCallerApproved();
+        if (approved) {
           setAppState("app");
         } else {
           setAppState("onboarding");
         }
       } catch {
-        // Not yet registered — show onboarding
         setAppState("onboarding");
       }
     };
@@ -83,12 +76,10 @@ export default function App() {
     >
       <Toaster position="top-center" />
 
-      {/* Splash Screen */}
       {appState === "splash" && (
         <SplashScreen onComplete={handleSplashComplete} />
       )}
 
-      {/* Onboarding Gate */}
       <AnimatePresence>
         {appState === "onboarding" && (
           <motion.div
@@ -104,7 +95,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Main App */}
       <AnimatePresence>
         {appState === "app" && (
           <motion.div

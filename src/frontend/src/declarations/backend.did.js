@@ -153,6 +153,7 @@ export const idlService = IDL.Service({
   'isCallerRegistered' : IDL.Func([], [IDL.Bool], ['query']),
   'listApprovals' : IDL.Func([], [IDL.Vec(UserApprovalInfo)], ['query']),
   'postMessage' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat], []),
+  'register' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [], []),
   'registerWithInviteCode' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Opt(IDL.Text)],
       [],
@@ -314,7 +315,8 @@ export const idlFactory = ({ IDL }) => {
     'isCallerRegistered' : IDL.Func([], [IDL.Bool], ['query']),
     'listApprovals' : IDL.Func([], [IDL.Vec(UserApprovalInfo)], ['query']),
     'postMessage' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat], []),
-    'registerWithInviteCode' : IDL.Func(
+    'register' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [], []),
+  'registerWithInviteCode' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Opt(IDL.Text)],
         [],
         [],
