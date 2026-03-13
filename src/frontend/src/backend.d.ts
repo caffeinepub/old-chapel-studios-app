@@ -7,6 +7,28 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
+export type Time = bigint;
+export interface StudioEvent {
+    id: bigint;
+    startTime: bigint;
+    title: string;
+    endTime: bigint;
+    createdBy: Principal;
+    room?: string;
+    description: string;
+}
+export interface InviteCode {
+    created: Time;
+    code: string;
+    used: boolean;
+}
+export interface RoomSlot {
+    hourStart: bigint;
+    dayOfWeek: bigint;
+    room: string;
+    available: boolean;
+    hourEnd: bigint;
+}
 export interface RSVP {
     name: string;
     inviteCode: string;
@@ -17,12 +39,14 @@ export interface UserApprovalInfo {
     status: ApprovalStatus;
     principal: Principal;
 }
-export interface InviteCode {
-    created: Time;
-    code: string;
-    used: boolean;
+export interface Message {
+    id: bigint;
+    content: string;
+    channelId: string;
+    authorName: string;
+    timestamp: bigint;
+    authorPrincipal: Principal;
 }
-export type Time = bigint;
 export interface UserProfile {
     status: UserStatus;
     shareContact: boolean;
@@ -56,21 +80,32 @@ export enum UserStatus {
 }
 export interface backendInterface {
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    banMember(user: Principal): Promise<void>;
+    bootstrapAdmin(displayName: string, avatarUrl: string | null): Promise<void>;
+    createEvent(title: string, description: string, startTime: bigint, endTime: bigint, room: string | null): Promise<bigint>;
+    deleteEvent(id: bigint): Promise<void>;
+    deleteMessage(messageId: bigint): Promise<void>;
     generateInviteCode(): Promise<string>;
+    getAllMembers(): Promise<Array<[Principal, UserProfile]>>;
     getAllRSVPs(): Promise<Array<RSVP>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
+    getEvents(): Promise<Array<StudioEvent>>;
     getInviteCodes(): Promise<Array<InviteCode>>;
+    getMessages(channelId: string): Promise<Array<Message>>;
+    getRoomAvailability(): Promise<Array<RoomSlot>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
+    isAdminAssigned(): Promise<boolean>;
     isCallerAdmin(): Promise<boolean>;
     isCallerApproved(): Promise<boolean>;
+    isCallerRegistered(): Promise<boolean>;
     listApprovals(): Promise<Array<UserApprovalInfo>>;
+    postMessage(channelId: string, content: string): Promise<bigint>;
+    registerWithInviteCode(code: string, displayName: string, avatarUrl: string | null): Promise<void>;
     requestApproval(): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setApproval(user: Principal, status: ApprovalStatus): Promise<void>;
+    setRoomAvailability(slots: Array<RoomSlot>): Promise<void>;
     submitRSVP(name: string, attending: boolean, inviteCode: string): Promise<void>;
-    bootstrapAdmin(displayName: string, avatarUrl: [] | [string]): Promise<void>;
-    isAdminAssigned(): Promise<boolean>;
-    isCallerRegistered(): Promise<boolean>;
-    registerWithInviteCode(code: string, displayName: string, avatarUrl: [] | [string]): Promise<void>;
+    updateMemberRole(user: Principal, newRole: AppUserRole): Promise<void>;
 }

@@ -22,11 +22,35 @@ export interface InviteCode {
   'code' : string,
   'used' : boolean,
 }
+export interface Message {
+  'id' : bigint,
+  'content' : string,
+  'channelId' : string,
+  'authorName' : string,
+  'timestamp' : bigint,
+  'authorPrincipal' : Principal,
+}
 export interface RSVP {
   'name' : string,
   'inviteCode' : string,
   'timestamp' : Time,
   'attending' : boolean,
+}
+export interface RoomSlot {
+  'hourStart' : bigint,
+  'dayOfWeek' : bigint,
+  'room' : string,
+  'available' : boolean,
+  'hourEnd' : bigint,
+}
+export interface StudioEvent {
+  'id' : bigint,
+  'startTime' : bigint,
+  'title' : string,
+  'endTime' : bigint,
+  'createdBy' : Principal,
+  'room' : [] | [string],
+  'description' : string,
 }
 export type Time = bigint;
 export interface UserApprovalInfo {
@@ -78,21 +102,40 @@ export interface _SERVICE {
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'banMember' : ActorMethod<[Principal], undefined>,
   'bootstrapAdmin' : ActorMethod<[string, [] | [string]], undefined>,
+  'createEvent' : ActorMethod<
+    [string, string, bigint, bigint, [] | [string]],
+    bigint
+  >,
+  'deleteEvent' : ActorMethod<[bigint], undefined>,
+  'deleteMessage' : ActorMethod<[bigint], undefined>,
   'generateInviteCode' : ActorMethod<[], string>,
+  'getAllMembers' : ActorMethod<[], Array<[Principal, UserProfile]>>,
   'getAllRSVPs' : ActorMethod<[], Array<RSVP>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getEvents' : ActorMethod<[], Array<StudioEvent>>,
   'getInviteCodes' : ActorMethod<[], Array<InviteCode>>,
+  'getMessages' : ActorMethod<[string], Array<Message>>,
+  'getRoomAvailability' : ActorMethod<[], Array<RoomSlot>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isAdminAssigned' : ActorMethod<[], boolean>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'isCallerApproved' : ActorMethod<[], boolean>,
+  'isCallerRegistered' : ActorMethod<[], boolean>,
   'listApprovals' : ActorMethod<[], Array<UserApprovalInfo>>,
+  'postMessage' : ActorMethod<[string, string], bigint>,
+  'registerWithInviteCode' : ActorMethod<
+    [string, string, [] | [string]],
+    undefined
+  >,
   'requestApproval' : ActorMethod<[], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'setApproval' : ActorMethod<[Principal, ApprovalStatus], undefined>,
+  'setRoomAvailability' : ActorMethod<[Array<RoomSlot>], undefined>,
   'submitRSVP' : ActorMethod<[string, boolean, string], undefined>,
+  'updateMemberRole' : ActorMethod<[Principal, AppUserRole], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

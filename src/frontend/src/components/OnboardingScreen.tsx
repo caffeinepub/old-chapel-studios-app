@@ -200,7 +200,7 @@ export default function OnboardingScreen({
     setDisplayNameError("");
     try {
       // Candid optional: [] means None, [value] means Some(value)
-      const avatarArg: [] | [string] = avatarBase64 ? [avatarBase64] : [];
+      const avatarArg: string | null = avatarBase64 ?? null;
       await currentActor.bootstrapAdmin(displayName.trim(), avatarArg);
       onApproved();
     } catch (err: unknown) {

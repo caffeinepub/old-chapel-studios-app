@@ -1,19 +1,21 @@
 # Old Chapel Studios App
 
 ## Current State
-The backend `main.mo` correctly defines `bootstrapAdmin`, but the deployed canister does not export it (IC0536). The source code is correct; the canister simply needs to be rebuilt and redeployed.
+The app is a secure, invite-only, Internet Identity-based community platform for a music studio. It has a working frontend with onboarding, login, admin bootstrap flow, group chats, availability grid, calendar, files, polls, and settings. The backend has all required methods including `bootstrapAdmin`, but the live canister on the network is not running the latest code -- the `bootstrapAdmin` method is consistently rejected with IC0536 (method not found) despite being correctly defined in `main.mo`.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Nothing new
+- Nothing new; this is a full rebuild to force a fresh canister deployment
 
 ### Modify
-- Trigger a clean rebuild to push the existing correct `bootstrapAdmin` method to the live canister
+- Full backend regeneration via `generate_motoko_code` to produce a clean canister with all methods properly compiled and deployed
+- Frontend preserved as-is (no UI changes required)
 
 ### Remove
 - Nothing
 
 ## Implementation Plan
-1. Force a rebuild by making a no-op whitespace touch to main.mo to ensure the build system picks up the latest code
-2. Deploy to update the live canister
+1. Regenerate backend Motoko code with all required methods: `bootstrapAdmin`, `isAdminAssigned`, `isCallerRegistered`, `registerWithInviteCode`, `getCallerUserProfile`, `saveCallerUserProfile`, `generateInviteCode`, `getInviteCodes`, `isCallerApproved`, `isCallerAdmin`, `listApprovals`, `setApproval`, `getUserProfile`, `getCallerUserRole`, `assignCallerUserRole`
+2. Keep all existing frontend code unchanged
+3. Deploy -- fresh canister will have all methods correctly exported
