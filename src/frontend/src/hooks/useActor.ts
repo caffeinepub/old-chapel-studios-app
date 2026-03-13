@@ -27,24 +27,12 @@ export function useActor() {
 
       const actor = await createActorWithConfig(actorOptions);
       const adminToken = getSecretParameter("caffeineAdminToken") || "";
-
-      // Don't let the access-control init block actor creation.
-      // If the backend is slow or this call hangs, the actor is still
-      // returned so the rest of the login flow can proceed.
-      try {
-        await Promise.race([
-          actor._initializeAccessControlWithSecret(adminToken),
-          new Promise<void>((_, reject) =>
-            setTimeout(() => reject(new Error("init timeout")), 10_000),
-          ),
-        ]);
-      } catch {
-        // Non-fatal – proceed with the actor regardless
-      }
-
+      await actor._initializeAccessControlWithSecret(adminToken);
       return actor;
     },
+    // Only refetch when identity changes
     staleTime: Number.POSITIVE_INFINITY,
+    // This will cause the actor to be recreated when the identity changes
     enabled: true,
   });
 

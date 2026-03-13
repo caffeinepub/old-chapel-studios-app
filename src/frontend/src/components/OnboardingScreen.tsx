@@ -135,9 +135,12 @@ export default function OnboardingScreen({
           // Admin exists — require invite code
           setScreen("invite");
         }
-      } catch {
+      } catch (err: unknown) {
+        const detail = err instanceof Error ? err.message : String(err);
         loginPendingRef.current = false;
-        setLoginError("Could not verify your account. Please try again.");
+        setLoginError(
+          `Could not verify your account: ${detail}. Please try again.`,
+        );
         setScreen("welcome");
       }
     };
@@ -207,7 +210,7 @@ export default function OnboardingScreen({
         onApproved();
       } else {
         setProfileSetupError(
-          "Could not activate admin account. Please try again.",
+          `Could not activate admin account: ${msg}. Please try again.`,
         );
       }
     } finally {
