@@ -69,4 +69,8 @@ export interface backendInterface {
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setApproval(user: Principal, status: ApprovalStatus): Promise<void>;
     submitRSVP(name: string, attending: boolean, inviteCode: string): Promise<void>;
+    bootstrapAdmin(displayName: string, avatarUrl: [] | [string]): Promise<void>;
+    isAdminAssigned(): Promise<boolean>;
+    isCallerRegistered(): Promise<boolean>;
+    registerWithInviteCode(code: string, displayName: string, avatarUrl: [] | [string]): Promise<void>;
 }

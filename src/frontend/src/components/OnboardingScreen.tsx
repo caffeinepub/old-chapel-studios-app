@@ -61,7 +61,11 @@ export default function OnboardingScreen({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState("");
-  const loginInitiatedRef = useRef(false);
+  // loginPendingRef is true from when the user clicks Login until the flow
+  // resolves (success, error, or timeout). This lets us distinguish errors
+  // that belong to the current login attempt from stale errors fired before
+  // the user did anything.
+  const loginPendingRef = useRef(false);
 
   // Keep a ref to always have the latest actor value in async closures
   const actorRef = useRef(actor);
@@ -69,22 +73,39 @@ export default function OnboardingScreen({
     actorRef.current = actor;
   }, [actor]);
 
-  // React to actor becoming available after login
+  // Safety-net timeout effect: always fires when on the "checking" screen.
+  // This runs independently of actor readiness so the user can never get
+  // permanently stuck even if the actor never becomes available.
+  useEffect(() => {
+    if (screen !== "checking") return;
+
+    const timeout = setTimeout(() => {
+      loginPendingRef.current = false;
+      setLoginError("Login timed out. Please try again.");
+      setScreen("welcome");
+    }, 20_000);
+
+    return () => clearTimeout(timeout);
+  }, [screen]);
+
+  // Access check effect: fires once actor is ready on the "checking" screen.
   useEffect(() => {
     if (screen !== "checking") return;
 
     if (loginStatus === "logging-in") {
-      loginInitiatedRef.current = false;
       return;
     }
 
     if (loginStatus === "loginError") {
-      if (loginInitiatedRef.current) return;
+      // Ignore stale errors that fired before the user clicked Login.
+      if (!loginPendingRef.current) return;
+      loginPendingRef.current = false;
       setLoginError("Login failed. Please try again.");
       setScreen("welcome");
       return;
     }
 
+    if (!identity) return;
     if (!actor) return;
 
     const checkAccess = async () => {
@@ -94,17 +115,19 @@ export default function OnboardingScreen({
           actor.isCallerAdmin(),
         ]);
         if (approved || isAdmin) {
+          loginPendingRef.current = false;
           onApproved();
           return;
         }
         // Not registered yet — check if an admin already exists
         let adminAssigned = false;
         try {
-          adminAssigned = await (actor as any).isAdminAssigned();
+          adminAssigned = await actor.isAdminAssigned();
         } catch {
           // If the method doesn't exist, assume admin is not yet assigned
           adminAssigned = false;
         }
+        loginPendingRef.current = false;
         if (!adminAssigned) {
           // First ever login — bootstrap this principal as admin
           setScreen("bootstrap-admin");
@@ -113,21 +136,22 @@ export default function OnboardingScreen({
           setScreen("invite");
         }
       } catch {
+        loginPendingRef.current = false;
         setLoginError("Could not verify your account. Please try again.");
         setScreen("welcome");
       }
     };
 
     checkAccess();
-  }, [screen, actor, loginStatus, onApproved]);
+  }, [screen, actor, loginStatus, identity, onApproved]);
 
   const handleLogin = () => {
     setLoginError("");
+    loginPendingRef.current = true;
     if (identity) {
       setScreen("checking");
       return;
     }
-    loginInitiatedRef.current = true;
     login();
     setScreen("checking");
   };
@@ -174,7 +198,7 @@ export default function OnboardingScreen({
     try {
       // Candid optional: [] means None, [value] means Some(value)
       const avatarArg: [] | [string] = avatarBase64 ? [avatarBase64] : [];
-      await (currentActor as any).bootstrapAdmin(displayName.trim(), avatarArg);
+      await currentActor.bootstrapAdmin(displayName.trim(), avatarArg);
       onApproved();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);

@@ -169,6 +169,10 @@ export interface backendInterface {
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setApproval(user: Principal, status: ApprovalStatus): Promise<void>;
     submitRSVP(name: string, attending: boolean, inviteCode: string): Promise<void>;
+    bootstrapAdmin(displayName: string, avatarUrl: [] | [string]): Promise<void>;
+    isAdminAssigned(): Promise<boolean>;
+    isCallerRegistered(): Promise<boolean>;
+    registerWithInviteCode(code: string, displayName: string, avatarUrl: [] | [string]): Promise<void>;
 }
 import type { AppUserRole as _AppUserRole, ApprovalStatus as _ApprovalStatus, UserApprovalInfo as _UserApprovalInfo, UserProfile as _UserProfile, UserRole as _UserRole, UserStatus as _UserStatus, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
@@ -465,6 +469,59 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.submitRSVP(arg0, arg1, arg2);
             return result;
+        }
+    }
+    async bootstrapAdmin(arg0, arg1) {
+        if (this.processError) {
+            try {
+                const result = await this.actor.bootstrapAdmin(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.bootstrapAdmin(arg0, arg1);
+            return result;
+        }
+    }
+    async isAdminAssigned() {
+        if (this.processError) {
+            try {
+                const result = await this.actor.isAdminAssigned();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.isAdminAssigned();
+            return result;
+        }
+    }
+    async isCallerRegistered() {
+        if (this.processError) {
+            try {
+                const result = await this.actor.isCallerRegistered();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            return await this.actor.isCallerRegistered();
+        }
+    }
+    async registerWithInviteCode(arg0, arg1, arg2) {
+        if (this.processError) {
+            try {
+                await this.actor.registerWithInviteCode(arg0, arg1, arg2);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            await this.actor.registerWithInviteCode(arg0, arg1, arg2);
         }
     }
 }
