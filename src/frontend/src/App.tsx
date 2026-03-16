@@ -23,7 +23,7 @@ export default function App() {
   const [chatOpen, setChatOpen] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
   const { identity, isInitializing } = useInternetIdentity();
-  const { actor, isFetching: actorFetching, isError: actorError } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
   const checkingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Advance past splash once animation done AND auth initialised
@@ -32,6 +32,7 @@ export default function App() {
     if (identity) {
       setAppState("checking");
     } else {
+      setConnectError(null);
       setAppState("onboarding");
     }
   }, [splashDone, isInitializing, identity]);
@@ -39,15 +40,16 @@ export default function App() {
   // Sign out if identity disappears while in the app
   useEffect(() => {
     if (appState === "app" && !identity) {
+      setConnectError(null);
       setAppState("onboarding");
     }
   }, [identity, appState]);
 
-  // Hard timeout: if stuck on checking for >20s, bail out gracefully
+  // Hard timeout: if stuck on checking for >20s, bail out silently (no error shown)
   useEffect(() => {
     if (appState === "checking") {
       checkingTimeoutRef.current = setTimeout(() => {
-        setConnectError("Could not connect to the server. Please try again.");
+        // Do NOT set connectError here — no user action triggered this
         setAppState("onboarding");
       }, 20000);
     } else {
@@ -68,19 +70,17 @@ export default function App() {
     if (appState !== "checking") return;
 
     if (!identity) {
-      setAppState("onboarding");
-      return;
-    }
-
-    // If actor failed to load, bail to onboarding
-    if (actorError) {
-      setConnectError("Could not reach the server. Please try again.");
+      setConnectError(null);
       setAppState("onboarding");
       return;
     }
 
     // Still loading actor
-    if (!actor || actorFetching) return;
+    if (actorFetching) return;
+
+    // Actor failed to load — bail to onboarding silently (no error shown,
+    // the 20s timeout is the fallback if it never resolves)
+    if (!actor) return;
 
     const checkAccess = async () => {
       try {
@@ -88,9 +88,11 @@ export default function App() {
         if (registered) {
           setAppState("app");
         } else {
+          setConnectError(null);
           setAppState("onboarding");
         }
       } catch (e) {
+        // Active session existed but backend call failed — show error
         const msg = e instanceof Error ? e.message : String(e);
         setConnectError(msg);
         setAppState("onboarding");
@@ -98,7 +100,7 @@ export default function App() {
     };
 
     void checkAccess();
-  }, [identity, actor, actorFetching, actorError, appState]);
+  }, [identity, actor, actorFetching, appState]);
 
   const handleApproved = () => {
     setConnectError(null);

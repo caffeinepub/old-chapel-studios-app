@@ -60,12 +60,9 @@ export default function OnboardingScreen({ onApproved, initialError }: Props) {
           setScreen("setup");
         }
       }
-    } catch (e: unknown) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Something went wrong. Please try again.",
-      );
+    } catch (_e: unknown) {
+      // Show a clean, user-friendly message — not raw ICP rejection text
+      setError("Could not reach the server. Please try again.");
       setScreen("home");
     } finally {
       setLoading(false);
