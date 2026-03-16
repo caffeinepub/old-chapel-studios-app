@@ -80,6 +80,7 @@ export enum UserStatus {
 }
 export interface backendInterface {
     addReaction(messageId: bigint, emoji: string): Promise<void>;
+    adminDeleteMessage(messageId: bigint): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     banUser(user: Principal): Promise<string>;
     createEvent(title: string, description: string, startTime: bigint, endTime: bigint, room: string | null): Promise<bigint>;

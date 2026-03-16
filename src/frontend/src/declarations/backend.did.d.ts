@@ -102,6 +102,7 @@ export interface _SERVICE {
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'addReaction' : ActorMethod<[bigint, string], undefined>,
+  'adminDeleteMessage' : ActorMethod<[bigint], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'banUser' : ActorMethod<[Principal], string>,
   'createEvent' : ActorMethod<

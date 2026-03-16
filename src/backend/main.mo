@@ -17,6 +17,12 @@ import InviteLinksModule "invite-links/invite-links-module";
 // Specify the data migration function in with-clause
 
 actor {
+  // Hardcoded admin principal
+  let ADMIN_PRINCIPAL : Text = "ulyt5-slv4a-xrfbx-seije-74i6r-4nkkh-ydqng-hgdb2-r3tlc-tkvp4-hae";
+  func isHardcodedAdmin(caller : Principal) : Bool {
+    caller.toText() == ADMIN_PRINCIPAL
+  };
+
   // Keep component state vars for stable variable compatibility
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
@@ -173,14 +179,14 @@ actor {
 
   // Admin User Management
   public query ({ caller }) func getAllUsers() : async [((Principal, UserProfile))] {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+    if (not isHardcodedAdmin(caller)) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     userProfiles.toArray();
   };
 
   public shared ({ caller }) func removeUser(user : Principal) : async Text {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+    if (not isHardcodedAdmin(caller)) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     switch (userProfiles.get(user)) {
@@ -195,7 +201,7 @@ actor {
   };
 
   public shared ({ caller }) func banUser(user : Principal) : async Text {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+    if (not isHardcodedAdmin(caller)) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     switch (userProfiles.get(user)) {
@@ -220,7 +226,7 @@ actor {
   };
 
   public shared ({ caller }) func unbanUser(user : Principal) : async Text {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+    if (not isHardcodedAdmin(caller)) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     switch (userProfiles.get(user)) {
@@ -315,7 +321,7 @@ actor {
 
   // Admin-only: delete any message for content moderation
   public shared ({ caller }) func adminDeleteMessage(messageId : Nat) : async () {
-    if (not (AccessControl.isAdmin(accessControlState, caller))) {
+    if (not isHardcodedAdmin(caller)) {
       Runtime.trap("Unauthorized: Admin access required");
     };
     switch (messages.get(messageId)) {

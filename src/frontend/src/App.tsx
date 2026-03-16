@@ -18,20 +18,21 @@ type AppState = "splash" | "onboarding" | "app" | "checking";
 
 export default function App() {
   const [appState, setAppState] = useState<AppState>("splash");
+  const [splashDone, setSplashDone] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("home");
   const [chatOpen, setChatOpen] = useState(false);
   const { identity, isInitializing } = useInternetIdentity();
   const { actor } = useActor();
 
-  const handleSplashComplete = () => {
-    setAppState(
-      isInitializing
-        ? "splash"
-        : identity
-          ? ("checking" as AppState)
-          : "onboarding",
-    );
-  };
+  // Advance past splash only once both the animation is done AND auth has initialised
+  useEffect(() => {
+    if (!splashDone || isInitializing) return;
+    if (identity) {
+      setAppState("checking");
+    } else {
+      setAppState("onboarding");
+    }
+  }, [splashDone, isInitializing, identity]);
 
   useEffect(() => {
     if (appState === "app" && !identity) {
@@ -78,7 +79,7 @@ export default function App() {
       <Toaster position="top-center" />
 
       {appState === "splash" && (
-        <SplashScreen onComplete={handleSplashComplete} />
+        <SplashScreen onComplete={() => setSplashDone(true)} />
       )}
 
       <AnimatePresence>

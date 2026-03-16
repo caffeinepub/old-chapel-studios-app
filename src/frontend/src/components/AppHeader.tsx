@@ -42,9 +42,9 @@ export default function AppHeader({
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg overflow-hidden bg-white shadow-orange-sm flex-shrink-0">
             <img
-              src="/assets/generated/chapel-icon-transparent.dim_512x512.png"
+              src="/assets/uploads/Screenshot-2026-03-16-at-20.05.05-1.png"
               alt=""
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
             />
           </div>
           <span

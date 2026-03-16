@@ -10,6 +10,7 @@ import type { Principal } from "@icp-sdk/core/principal";
 import { ArrowLeft, Lock, Plus, Send, Trash2, Users, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 interface BackendMessage {
   id: bigint;
@@ -182,8 +183,9 @@ export default function ChatsPage({ onChatOpenChange }: ChatsPageProps) {
     try {
       await actor.adminDeleteMessage(msgId);
       setBackendMessages((prev) => prev.filter((m) => m.id !== msgId));
-    } catch {
-      // silently ignore
+    } catch (err) {
+      console.error("Failed to delete message:", err);
+      toast.error("Failed to delete message. Please try again.");
     } finally {
       setDeletingMsgId(null);
     }
@@ -400,8 +402,7 @@ export default function ChatsPage({ onChatOpenChange }: ChatsPageProps) {
                         {msg.content}
                       </div>
 
-                      {/* Emoji reaction trigger */}
-                      {/* Admin delete button */}
+                      {/* Admin delete button — shown for ALL messages (including own) when isAdmin */}
                       {isAdmin && (
                         <button
                           type="button"
