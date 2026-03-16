@@ -12,7 +12,7 @@ import HomePage from "@/pages/HomePage";
 import PollsPage from "@/pages/PollsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type AppState = "splash" | "onboarding" | "app" | "checking";
 
@@ -21,10 +21,12 @@ export default function App() {
   const [splashDone, setSplashDone] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("home");
   const [chatOpen, setChatOpen] = useState(false);
+  const [connectError, setConnectError] = useState<string | null>(null);
   const { identity, isInitializing } = useInternetIdentity();
-  const { actor } = useActor();
+  const { actor, isFetching: actorFetching, isError: actorError } = useActor();
+  const checkingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Advance past splash only once both the animation is done AND auth has initialised
+  // Advance past splash once animation done AND auth initialised
   useEffect(() => {
     if (!splashDone || isInitializing) return;
     if (identity) {
@@ -34,41 +36,72 @@ export default function App() {
     }
   }, [splashDone, isInitializing, identity]);
 
+  // Sign out if identity disappears while in the app
   useEffect(() => {
     if (appState === "app" && !identity) {
       setAppState("onboarding");
     }
   }, [identity, appState]);
 
+  // Hard timeout: if stuck on checking for >20s, bail out gracefully
   useEffect(() => {
-    // Only run during the explicit "checking" state — not during onboarding
+    if (appState === "checking") {
+      checkingTimeoutRef.current = setTimeout(() => {
+        setConnectError("Could not connect to the server. Please try again.");
+        setAppState("onboarding");
+      }, 20000);
+    } else {
+      if (checkingTimeoutRef.current) {
+        clearTimeout(checkingTimeoutRef.current);
+        checkingTimeoutRef.current = null;
+      }
+    }
+    return () => {
+      if (checkingTimeoutRef.current) {
+        clearTimeout(checkingTimeoutRef.current);
+      }
+    };
+  }, [appState]);
+
+  // Run access check once actor is ready
+  useEffect(() => {
     if (appState !== "checking") return;
+
     if (!identity) {
       setAppState("onboarding");
       return;
     }
-    if (!actor) {
-      // Actor still loading — stay in checking until it's ready
+
+    // If actor failed to load, bail to onboarding
+    if (actorError) {
+      setConnectError("Could not reach the server. Please try again.");
+      setAppState("onboarding");
       return;
     }
 
+    // Still loading actor
+    if (!actor || actorFetching) return;
+
     const checkAccess = async () => {
       try {
-        const approved = await actor.isCallerApproved();
-        if (approved) {
+        const registered = await actor.isCallerRegistered();
+        if (registered) {
           setAppState("app");
         } else {
           setAppState("onboarding");
         }
-      } catch {
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setConnectError(msg);
         setAppState("onboarding");
       }
     };
 
-    checkAccess();
-  }, [identity, actor, appState]);
+    void checkAccess();
+  }, [identity, actor, actorFetching, actorError, appState]);
 
   const handleApproved = () => {
+    setConnectError(null);
     setAppState("app");
   };
 
@@ -93,7 +126,10 @@ export default function App() {
             transition={{ duration: 0.3 }}
             className="min-h-screen"
           >
-            <OnboardingScreen onApproved={handleApproved} />
+            <OnboardingScreen
+              onApproved={handleApproved}
+              initialError={connectError ?? undefined}
+            />
           </motion.div>
         )}
       </AnimatePresence>

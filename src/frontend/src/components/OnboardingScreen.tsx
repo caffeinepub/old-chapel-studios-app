@@ -10,9 +10,10 @@ type Screen = "home" | "setup" | "checking";
 
 interface Props {
   onApproved: () => void;
+  initialError?: string;
 }
 
-export default function OnboardingScreen({ onApproved }: Props) {
+export default function OnboardingScreen({ onApproved, initialError }: Props) {
   const { login, isLoggingIn, identity, loginError } = useInternetIdentity();
   const { actor, isFetching } = useActor();
   const actorRef = useRef(actor);
@@ -22,7 +23,7 @@ export default function OnboardingScreen({ onApproved }: Props) {
 
   const [screen, setScreen] = useState<Screen>("home");
   const [displayName, setDisplayName] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(initialError ?? "");
   const [loading, setLoading] = useState(false);
   const [waitingForActor, setWaitingForActor] = useState(false);
 
@@ -76,7 +77,6 @@ export default function OnboardingScreen({ onApproved }: Props) {
     if (identity && actor) {
       runCheck(action);
     } else if (identity && !actor) {
-      // Identity is ready but actor is still loading — set pending and wait
       pendingAction.current = action;
       setWaitingForActor(true);
     } else {
@@ -93,8 +93,6 @@ export default function OnboardingScreen({ onApproved }: Props) {
     setLoading(true);
     setError("");
     try {
-      // Use open registration — no invite code needed
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await actorRef.current!.register(displayName.trim(), null);
       onApproved();
     } catch (e: unknown) {
@@ -117,7 +115,6 @@ export default function OnboardingScreen({ onApproved }: Props) {
       style={{ backgroundColor: "oklch(0.13 0.008 50)" }}
     >
       <div className="w-full max-w-sm space-y-6">
-        {/* Logo / Title */}
         <div className="text-center space-y-1">
           <h1 className="text-2xl font-bold" style={{ color: "#FF4500" }}>
             Old Chapel Studios
@@ -127,7 +124,6 @@ export default function OnboardingScreen({ onApproved }: Props) {
           </p>
         </div>
 
-        {/* Checking */}
         {screen === "checking" && (
           <div
             data-ocid="onboarding.loading_state"
@@ -141,7 +137,6 @@ export default function OnboardingScreen({ onApproved }: Props) {
           </div>
         )}
 
-        {/* Home */}
         {screen === "home" && (
           <div className="space-y-3">
             <Button
@@ -185,7 +180,6 @@ export default function OnboardingScreen({ onApproved }: Props) {
           </div>
         )}
 
-        {/* Setup — new user, enter display name */}
         {screen === "setup" && (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-white">Create Account</h2>
