@@ -41,13 +41,14 @@ export default function App() {
   }, [identity, appState]);
 
   useEffect(() => {
-    if (appState === "splash" || appState === "app") return;
+    // Only run during the explicit "checking" state — not during onboarding
+    if (appState !== "checking") return;
     if (!identity) {
       setAppState("onboarding");
       return;
     }
     if (!actor) {
-      setAppState("onboarding");
+      // Actor still loading — stay in checking until it's ready
       return;
     }
 
@@ -93,6 +94,33 @@ export default function App() {
             className="min-h-screen"
           >
             <OnboardingScreen onApproved={handleApproved} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {appState === "checking" && (
+          <motion.div
+            key="checking"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="min-h-screen flex items-center justify-center"
+            style={{ backgroundColor: "oklch(0.13 0.008 50)" }}
+          >
+            <div className="flex flex-col items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin"
+                style={{
+                  borderColor: "#FF4500",
+                  borderTopColor: "transparent",
+                }}
+              />
+              <p className="text-sm" style={{ color: "oklch(0.6 0.01 50)" }}>
+                Connecting…
+              </p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -13,8 +13,8 @@ interface Props {
 }
 
 export default function OnboardingScreen({ onApproved }: Props) {
-  const { login, isLoggingIn, identity } = useInternetIdentity();
-  const { actor } = useActor();
+  const { login, isLoggingIn, identity, loginError } = useInternetIdentity();
+  const { actor, isFetching } = useActor();
   const actorRef = useRef(actor);
   useEffect(() => {
     actorRef.current = actor;
@@ -24,6 +24,7 @@ export default function OnboardingScreen({ onApproved }: Props) {
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [waitingForActor, setWaitingForActor] = useState(false);
 
   const pendingAction = useRef<"login" | "signup" | null>(null);
 
@@ -31,6 +32,7 @@ export default function OnboardingScreen({ onApproved }: Props) {
     if (!identity || !actor || !pendingAction.current) return;
     const action = pendingAction.current;
     pendingAction.current = null;
+    setWaitingForActor(false);
     runCheck(action);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [identity, actor]);
@@ -73,9 +75,13 @@ export default function OnboardingScreen({ onApproved }: Props) {
     setError("");
     if (identity && actor) {
       runCheck(action);
+    } else if (identity && !actor) {
+      // Identity is ready but actor is still loading — set pending and wait
+      pendingAction.current = action;
+      setWaitingForActor(true);
     } else {
       pendingAction.current = action;
-      await login();
+      login();
     }
   }
 
@@ -102,7 +108,7 @@ export default function OnboardingScreen({ onApproved }: Props) {
     }
   }
 
-  const busy = loading || isLoggingIn;
+  const busy = loading || isLoggingIn || waitingForActor || isFetching;
 
   return (
     <div
@@ -165,12 +171,15 @@ export default function OnboardingScreen({ onApproved }: Props) {
                 "Sign Up"
               )}
             </Button>
-            {error && (
+            {(error || loginError) && (
               <p
                 data-ocid="onboarding.error_state"
                 className="text-sm text-red-400 text-center"
               >
-                {error}
+                {error ||
+                  (loginError instanceof Error
+                    ? loginError.message
+                    : String(loginError))}
               </p>
             )}
           </div>

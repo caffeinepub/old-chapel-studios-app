@@ -184,8 +184,9 @@ export default function ChatsPage({ onChatOpenChange }: ChatsPageProps) {
       await actor.adminDeleteMessage(msgId);
       setBackendMessages((prev) => prev.filter((m) => m.id !== msgId));
     } catch (err) {
-      console.error("Failed to delete message:", err);
-      toast.error("Failed to delete message. Please try again.");
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("Failed to delete message:", msg);
+      toast.error(`Delete failed: ${msg}`);
     } finally {
       setDeletingMsgId(null);
     }
