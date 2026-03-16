@@ -19,6 +19,7 @@ type AppState = "splash" | "onboarding" | "app" | "checking";
 export default function App() {
   const [appState, setAppState] = useState<AppState>("splash");
   const [activeTab, setActiveTab] = useState<TabId>("home");
+  const [chatOpen, setChatOpen] = useState(false);
   const { identity, isInitializing } = useInternetIdentity();
   const { actor } = useActor();
 
@@ -147,7 +148,7 @@ export default function App() {
                     exit={{ opacity: 0, x: 8 }}
                     transition={{ duration: 0.18 }}
                   >
-                    <ChatsPage />
+                    <ChatsPage onChatOpenChange={setChatOpen} />
                   </motion.div>
                 )}
                 {activeTab === "files" && (
@@ -186,11 +187,13 @@ export default function App() {
               </AnimatePresence>
             </div>
 
-            <BottomNav
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              chatUnreadCount={0}
-            />
+            {!chatOpen && (
+              <BottomNav
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                chatUnreadCount={0}
+              />
+            )}
           </motion.div>
         )}
       </AnimatePresence>

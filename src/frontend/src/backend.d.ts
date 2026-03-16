@@ -79,34 +79,34 @@ export enum UserStatus {
     suspended = "suspended"
 }
 export interface backendInterface {
+    addReaction(messageId: bigint, emoji: string): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
-    banMember(user: Principal): Promise<void>;
-    bootstrapAdmin(displayName: string, avatarUrl: string | null): Promise<void>;
+    banUser(user: Principal): Promise<string>;
     createEvent(title: string, description: string, startTime: bigint, endTime: bigint, room: string | null): Promise<bigint>;
     deleteEvent(id: bigint): Promise<void>;
     deleteMessage(messageId: bigint): Promise<void>;
     generateInviteCode(): Promise<string>;
-    getAllMembers(): Promise<Array<[Principal, UserProfile]>>;
     getAllRSVPs(): Promise<Array<RSVP>>;
+    getAllUsers(): Promise<Array<[Principal, UserProfile]>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getEvents(): Promise<Array<StudioEvent>>;
     getInviteCodes(): Promise<Array<InviteCode>>;
     getMessages(channelId: string): Promise<Array<Message>>;
+    getReactions(messageId: bigint): Promise<Array<[string, Array<Principal>]>>;
     getRoomAvailability(): Promise<Array<RoomSlot>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
-    isAdminAssigned(): Promise<boolean>;
     isCallerAdmin(): Promise<boolean>;
     isCallerApproved(): Promise<boolean>;
     isCallerRegistered(): Promise<boolean>;
     listApprovals(): Promise<Array<UserApprovalInfo>>;
     postMessage(channelId: string, content: string): Promise<bigint>;
     register(displayName: string, avatarUrl: string | null): Promise<void>;
-    registerWithInviteCode(code: string, displayName: string, avatarUrl: string | null): Promise<void>;
+    removeUser(user: Principal): Promise<string>;
     requestApproval(): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setApproval(user: Principal, status: ApprovalStatus): Promise<void>;
     setRoomAvailability(slots: Array<RoomSlot>): Promise<void>;
     submitRSVP(name: string, attending: boolean, inviteCode: string): Promise<void>;
-    updateMemberRole(user: Principal, newRole: AppUserRole): Promise<void>;
+    unbanUser(user: Principal): Promise<string>;
 }

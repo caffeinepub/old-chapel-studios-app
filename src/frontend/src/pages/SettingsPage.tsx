@@ -1,4 +1,5 @@
 import { AppUserRole, type UserProfile, UserStatus } from "@/backend";
+import AdminMembersPanel from "@/components/AdminMembersPanel";
 import AppHeader from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,8 +49,24 @@ export default function SettingsPage() {
     if (!actor) return;
     actor
       .getCallerUserProfile()
-      .then((profile) => {
-        if (profile) {
+      .then(async (rawProfile) => {
+        if (rawProfile) {
+          // If the user is the hardcoded admin principal but has a non-admin role,
+          // automatically claim the admin role to fix existing accounts.
+          const ADMIN_PRINCIPAL =
+            "ulyt5-slv4a-xrfbx-seije-74i6r-4nkkh-ydqng-hgdb2-r3tlc-tkvp4-hae";
+          let profile = rawProfile;
+          if (
+            profile.role !== AppUserRole.admin &&
+            identity?.getPrincipal().toText() === ADMIN_PRINCIPAL
+          ) {
+            try {
+              await (actor as any).claimAdminRole();
+              profile = { ...profile, role: AppUserRole.admin };
+            } catch {
+              // ignore — not critical
+            }
+          }
           const initials = profile.displayName
             ? profile.displayName
                 .split(" ")
@@ -75,7 +92,7 @@ export default function SettingsPage() {
       .catch(() => {
         setProfileLoaded(true);
       });
-  }, [actor]);
+  }, [actor, identity]);
 
   const principalText = identity ? identity.getPrincipal().toText() : "";
   const principalShort =
@@ -109,6 +126,8 @@ export default function SettingsPage() {
     }
     setSection("main");
   };
+
+  const isAdmin = currentUser.role === AppUserRole.admin;
 
   const roleLabel = currentUser.role
     ? currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1)
@@ -250,11 +269,25 @@ export default function SettingsPage() {
 
       <main className="flex-1 pb-24 overflow-y-auto">
         <div className="max-w-2xl mx-auto px-4 pt-4 space-y-5">
+          {/* Admin: Members Management — only visible to admins */}
+          {profileLoaded && isAdmin && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25 }}
+            >
+              <AdminMembersPanel />
+            </motion.div>
+          )}
+
           {/* Profile Card */}
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={{
+              duration: 0.25,
+              delay: profileLoaded && isAdmin ? 0.05 : 0,
+            }}
             className="rounded-xl border p-4"
             data-ocid="settings.profile.card"
             style={{

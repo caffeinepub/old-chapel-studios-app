@@ -179,36 +179,37 @@ export interface backendInterface {
     _caffeineStorageRefillCashier(refillInformation: _CaffeineStorageRefillInformation | null): Promise<_CaffeineStorageRefillResult>;
     _caffeineStorageUpdateGatewayPrincipals(): Promise<void>;
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
+    addReaction(messageId: bigint, emoji: string): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
-    banMember(user: Principal): Promise<void>;
-    bootstrapAdmin(displayName: string, avatarUrl: string | null): Promise<void>;
+    banUser(user: Principal): Promise<string>;
     createEvent(title: string, description: string, startTime: bigint, endTime: bigint, room: string | null): Promise<bigint>;
     deleteEvent(id: bigint): Promise<void>;
     deleteMessage(messageId: bigint): Promise<void>;
+    adminDeleteMessage(messageId: bigint): Promise<void>;
     generateInviteCode(): Promise<string>;
-    getAllMembers(): Promise<Array<[Principal, UserProfile]>>;
     getAllRSVPs(): Promise<Array<RSVP>>;
+    getAllUsers(): Promise<Array<[Principal, UserProfile]>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getEvents(): Promise<Array<StudioEvent>>;
     getInviteCodes(): Promise<Array<InviteCode>>;
     getMessages(channelId: string): Promise<Array<Message>>;
+    getReactions(messageId: bigint): Promise<Array<[string, Array<Principal>]>>;
     getRoomAvailability(): Promise<Array<RoomSlot>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
-    isAdminAssigned(): Promise<boolean>;
     isCallerAdmin(): Promise<boolean>;
     isCallerApproved(): Promise<boolean>;
     isCallerRegistered(): Promise<boolean>;
     listApprovals(): Promise<Array<UserApprovalInfo>>;
     postMessage(channelId: string, content: string): Promise<bigint>;
     register(displayName: string, avatarUrl: string | null): Promise<void>;
-    registerWithInviteCode(code: string, displayName: string, avatarUrl: string | null): Promise<void>;
+    removeUser(user: Principal): Promise<string>;
     requestApproval(): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     setApproval(user: Principal, status: ApprovalStatus): Promise<void>;
     setRoomAvailability(slots: Array<RoomSlot>): Promise<void>;
     submitRSVP(name: string, attending: boolean, inviteCode: string): Promise<void>;
-    updateMemberRole(user: Principal, newRole: AppUserRole): Promise<void>;
+    unbanUser(user: Principal): Promise<string>;
 }
 import type { AppUserRole as _AppUserRole, ApprovalStatus as _ApprovalStatus, StudioEvent as _StudioEvent, UserApprovalInfo as _UserApprovalInfo, UserProfile as _UserProfile, UserRole as _UserRole, UserStatus as _UserStatus, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
@@ -311,6 +312,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async addReaction(arg0: bigint, arg1: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addReaction(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addReaction(arg0, arg1);
+            return result;
+        }
+    }
     async assignCallerUserRole(arg0: Principal, arg1: UserRole): Promise<void> {
         if (this.processError) {
             try {
@@ -325,31 +340,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async banMember(arg0: Principal): Promise<void> {
+    async banUser(arg0: Principal): Promise<string> {
         if (this.processError) {
             try {
-                const result = await this.actor.banMember(arg0);
+                const result = await this.actor.banUser(arg0);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.banMember(arg0);
-            return result;
-        }
-    }
-    async bootstrapAdmin(arg0: string, arg1: string | null): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.bootstrapAdmin(arg0, to_candid_opt_n10(this._uploadFile, this._downloadFile, arg1));
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.bootstrapAdmin(arg0, to_candid_opt_n10(this._uploadFile, this._downloadFile, arg1));
+            const result = await this.actor.banUser(arg0);
             return result;
         }
     }
@@ -395,6 +396,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async adminDeleteMessage(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.adminDeleteMessage(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.adminDeleteMessage(arg0);
+            return result;
+        }
+    }
     async generateInviteCode(): Promise<string> {
         if (this.processError) {
             try {
@@ -409,20 +424,6 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getAllMembers(): Promise<Array<[Principal, UserProfile]>> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.getAllMembers();
-                return from_candid_vec_n11(this._uploadFile, this._downloadFile, result);
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.getAllMembers();
-            return from_candid_vec_n11(this._uploadFile, this._downloadFile, result);
-        }
-    }
     async getAllRSVPs(): Promise<Array<RSVP>> {
         if (this.processError) {
             try {
@@ -435,6 +436,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.getAllRSVPs();
             return result;
+        }
+    }
+    async getAllUsers(): Promise<Array<[Principal, UserProfile]>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllUsers();
+                return from_candid_vec_n11(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllUsers();
+            return from_candid_vec_n11(this._uploadFile, this._downloadFile, result);
         }
     }
     async getCallerUserProfile(): Promise<UserProfile | null> {
@@ -507,6 +522,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getReactions(arg0: bigint): Promise<Array<[string, Array<Principal>]>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getReactions(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getReactions(arg0);
+            return result;
+        }
+    }
     async getRoomAvailability(): Promise<Array<RoomSlot>> {
         if (this.processError) {
             try {
@@ -533,20 +562,6 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.getUserProfile(arg0);
             return from_candid_opt_n20(this._uploadFile, this._downloadFile, result);
-        }
-    }
-    async isAdminAssigned(): Promise<boolean> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.isAdminAssigned();
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.isAdminAssigned();
-            return result;
         }
     }
     async isCallerAdmin(): Promise<boolean> {
@@ -633,18 +648,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-
-    async registerWithInviteCode(arg0: string, arg1: string, arg2: string | null): Promise<void> {
+    async removeUser(arg0: Principal): Promise<string> {
         if (this.processError) {
             try {
-                const result = await this.actor.registerWithInviteCode(arg0, arg1, to_candid_opt_n10(this._uploadFile, this._downloadFile, arg2));
+                const result = await this.actor.removeUser(arg0);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.registerWithInviteCode(arg0, arg1, to_candid_opt_n10(this._uploadFile, this._downloadFile, arg2));
+            const result = await this.actor.removeUser(arg0);
             return result;
         }
     }
@@ -718,17 +732,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async updateMemberRole(arg0: Principal, arg1: AppUserRole): Promise<void> {
+    async unbanUser(arg0: Principal): Promise<string> {
         if (this.processError) {
             try {
-                const result = await this.actor.updateMemberRole(arg0, to_candid_AppUserRole_n35(this._uploadFile, this._downloadFile, arg1));
+                const result = await this.actor.unbanUser(arg0);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.updateMemberRole(arg0, to_candid_AppUserRole_n35(this._uploadFile, this._downloadFile, arg1));
+            const result = await this.actor.unbanUser(arg0);
             return result;
         }
     }

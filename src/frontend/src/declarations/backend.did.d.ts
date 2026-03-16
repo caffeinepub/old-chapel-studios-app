@@ -101,9 +101,9 @@ export interface _SERVICE {
   >,
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'addReaction' : ActorMethod<[bigint, string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
-  'banMember' : ActorMethod<[Principal], undefined>,
-  'bootstrapAdmin' : ActorMethod<[string, [] | [string]], undefined>,
+  'banUser' : ActorMethod<[Principal], string>,
   'createEvent' : ActorMethod<
     [string, string, bigint, bigint, [] | [string]],
     bigint
@@ -111,32 +111,29 @@ export interface _SERVICE {
   'deleteEvent' : ActorMethod<[bigint], undefined>,
   'deleteMessage' : ActorMethod<[bigint], undefined>,
   'generateInviteCode' : ActorMethod<[], string>,
-  'getAllMembers' : ActorMethod<[], Array<[Principal, UserProfile]>>,
   'getAllRSVPs' : ActorMethod<[], Array<RSVP>>,
+  'getAllUsers' : ActorMethod<[], Array<[Principal, UserProfile]>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getEvents' : ActorMethod<[], Array<StudioEvent>>,
   'getInviteCodes' : ActorMethod<[], Array<InviteCode>>,
   'getMessages' : ActorMethod<[string], Array<Message>>,
+  'getReactions' : ActorMethod<[bigint], Array<[string, Array<Principal>]>>,
   'getRoomAvailability' : ActorMethod<[], Array<RoomSlot>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
-  'isAdminAssigned' : ActorMethod<[], boolean>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'isCallerApproved' : ActorMethod<[], boolean>,
   'isCallerRegistered' : ActorMethod<[], boolean>,
   'listApprovals' : ActorMethod<[], Array<UserApprovalInfo>>,
   'postMessage' : ActorMethod<[string, string], bigint>,
   'register' : ActorMethod<[string, [] | [string]], undefined>,
-  'registerWithInviteCode' : ActorMethod<
-    [string, string, [] | [string]],
-    undefined
-  >,
+  'removeUser' : ActorMethod<[Principal], string>,
   'requestApproval' : ActorMethod<[], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'setApproval' : ActorMethod<[Principal, ApprovalStatus], undefined>,
   'setRoomAvailability' : ActorMethod<[Array<RoomSlot>], undefined>,
   'submitRSVP' : ActorMethod<[string, boolean, string], undefined>,
-  'updateMemberRole' : ActorMethod<[Principal, AppUserRole], undefined>,
+  'unbanUser' : ActorMethod<[Principal], string>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

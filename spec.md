@@ -1,21 +1,24 @@
 # Old Chapel Studios App
 
 ## Current State
-The app is a secure, invite-only, Internet Identity-based community platform for a music studio. It has a working frontend with onboarding, login, admin bootstrap flow, group chats, availability grid, calendar, files, polls, and settings. The backend has all required methods including `bootstrapAdmin`, but the live canister on the network is not running the latest code -- the `bootstrapAdmin` method is consistently rejected with IC0536 (method not found) despite being correctly defined in `main.mo`.
+The app has a fully functional group chat across multiple channels. Messages show sender identity (own messages on right in orange, others on left with name/initials). Emoji reactions and tappable user profiles exist. Admin user management (view, ban, remove members) is available in Settings for the hardcoded admin principal. There is a `deleteMessage` backend function that only lets the author delete their own messages.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Nothing new; this is a full rebuild to force a fresh canister deployment
+- `adminDeleteMessage(messageId: Nat)` backend function: admin-only, deletes any message regardless of author. Already added to `main.mo` and `backend.ts`.
+- Frontend: When the current user is admin, show a small trash/delete icon on every message bubble (visible on hover/tap). Tapping it calls `adminDeleteMessage` and removes the message from the local list immediately.
+- The delete icon should be subtle and unobtrusive -- not shown to regular members at all.
 
 ### Modify
-- Full backend regeneration via `generate_motoko_code` to produce a clean canister with all methods properly compiled and deployed
-- Frontend preserved as-is (no UI changes required)
+- Chat message components to conditionally render the admin delete button based on `isAdmin` state.
 
 ### Remove
-- Nothing
+- Nothing removed.
 
 ## Implementation Plan
-1. Regenerate backend Motoko code with all required methods: `bootstrapAdmin`, `isAdminAssigned`, `isCallerRegistered`, `registerWithInviteCode`, `getCallerUserProfile`, `saveCallerUserProfile`, `generateInviteCode`, `getInviteCodes`, `isCallerApproved`, `isCallerAdmin`, `listApprovals`, `setApproval`, `getUserProfile`, `getCallerUserRole`, `assignCallerUserRole`
-2. Keep all existing frontend code unchanged
-3. Deploy -- fresh canister will have all methods correctly exported
+1. In the chat UI (wherever messages are rendered), read the existing `isAdmin` / user role state.
+2. For each message bubble, if admin: render a small trash icon button (e.g. top-right of message, subtle red).
+3. On click: call `backend.adminDeleteMessage(BigInt(message.id))`, then remove the message from local state.
+4. Show a brief loading/disabled state on the button while the call is in flight to prevent double-taps.
+5. No confirmation dialog needed -- admin action should be fast.

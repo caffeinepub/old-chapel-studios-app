@@ -24,6 +24,13 @@ export const UserRole = IDL.Variant({
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
+export const Time = IDL.Int;
+export const RSVP = IDL.Record({
+  'name' : IDL.Text,
+  'inviteCode' : IDL.Text,
+  'timestamp' : Time,
+  'attending' : IDL.Bool,
+});
 export const UserStatus = IDL.Variant({
   'active' : IDL.Null,
   'banned' : IDL.Null,
@@ -44,13 +51,6 @@ export const UserProfile = IDL.Record({
   'email' : IDL.Opt(IDL.Text),
   'avatarUrl' : IDL.Opt(IDL.Text),
   'phone' : IDL.Opt(IDL.Text),
-});
-export const Time = IDL.Int;
-export const RSVP = IDL.Record({
-  'name' : IDL.Text,
-  'inviteCode' : IDL.Text,
-  'timestamp' : Time,
-  'attending' : IDL.Bool,
 });
 export const StudioEvent = IDL.Record({
   'id' : IDL.Nat,
@@ -119,9 +119,9 @@ export const idlService = IDL.Service({
     ),
   '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'addReaction' : IDL.Func([IDL.Nat, IDL.Text], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-  'banMember' : IDL.Func([IDL.Principal], [], []),
-  'bootstrapAdmin' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [], []),
+  'banUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
   'createEvent' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Int, IDL.Int, IDL.Opt(IDL.Text)],
       [IDL.Nat],
@@ -130,41 +130,41 @@ export const idlService = IDL.Service({
   'deleteEvent' : IDL.Func([IDL.Nat], [], []),
   'deleteMessage' : IDL.Func([IDL.Nat], [], []),
   'generateInviteCode' : IDL.Func([], [IDL.Text], []),
-  'getAllMembers' : IDL.Func(
+  'getAllRSVPs' : IDL.Func([], [IDL.Vec(RSVP)], ['query']),
+  'getAllUsers' : IDL.Func(
       [],
       [IDL.Vec(IDL.Tuple(IDL.Principal, UserProfile))],
       ['query'],
     ),
-  'getAllRSVPs' : IDL.Func([], [IDL.Vec(RSVP)], ['query']),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getEvents' : IDL.Func([], [IDL.Vec(StudioEvent)], ['query']),
   'getInviteCodes' : IDL.Func([], [IDL.Vec(InviteCode)], ['query']),
   'getMessages' : IDL.Func([IDL.Text], [IDL.Vec(Message)], ['query']),
+  'getReactions' : IDL.Func(
+      [IDL.Nat],
+      [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Vec(IDL.Principal)))],
+      ['query'],
+    ),
   'getRoomAvailability' : IDL.Func([], [IDL.Vec(RoomSlot)], ['query']),
   'getUserProfile' : IDL.Func(
       [IDL.Principal],
       [IDL.Opt(UserProfile)],
       ['query'],
     ),
-  'isAdminAssigned' : IDL.Func([], [IDL.Bool], ['query']),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'isCallerApproved' : IDL.Func([], [IDL.Bool], ['query']),
   'isCallerRegistered' : IDL.Func([], [IDL.Bool], ['query']),
   'listApprovals' : IDL.Func([], [IDL.Vec(UserApprovalInfo)], ['query']),
   'postMessage' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat], []),
   'register' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [], []),
-  'registerWithInviteCode' : IDL.Func(
-      [IDL.Text, IDL.Text, IDL.Opt(IDL.Text)],
-      [],
-      [],
-    ),
+  'removeUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
   'requestApproval' : IDL.Func([], [], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'setApproval' : IDL.Func([IDL.Principal, ApprovalStatus], [], []),
   'setRoomAvailability' : IDL.Func([IDL.Vec(RoomSlot)], [], []),
   'submitRSVP' : IDL.Func([IDL.Text, IDL.Bool, IDL.Text], [], []),
-  'updateMemberRole' : IDL.Func([IDL.Principal, AppUserRole], [], []),
+  'unbanUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
 });
 
 export const idlInitArgs = [];
@@ -186,6 +186,13 @@ export const idlFactory = ({ IDL }) => {
     'user' : IDL.Null,
     'guest' : IDL.Null,
   });
+  const Time = IDL.Int;
+  const RSVP = IDL.Record({
+    'name' : IDL.Text,
+    'inviteCode' : IDL.Text,
+    'timestamp' : Time,
+    'attending' : IDL.Bool,
+  });
   const UserStatus = IDL.Variant({
     'active' : IDL.Null,
     'banned' : IDL.Null,
@@ -206,13 +213,6 @@ export const idlFactory = ({ IDL }) => {
     'email' : IDL.Opt(IDL.Text),
     'avatarUrl' : IDL.Opt(IDL.Text),
     'phone' : IDL.Opt(IDL.Text),
-  });
-  const Time = IDL.Int;
-  const RSVP = IDL.Record({
-    'name' : IDL.Text,
-    'inviteCode' : IDL.Text,
-    'timestamp' : Time,
-    'attending' : IDL.Bool,
   });
   const StudioEvent = IDL.Record({
     'id' : IDL.Nat,
@@ -281,9 +281,9 @@ export const idlFactory = ({ IDL }) => {
       ),
     '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'addReaction' : IDL.Func([IDL.Nat, IDL.Text], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-    'banMember' : IDL.Func([IDL.Principal], [], []),
-    'bootstrapAdmin' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [], []),
+    'banUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'createEvent' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Int, IDL.Int, IDL.Opt(IDL.Text)],
         [IDL.Nat],
@@ -292,41 +292,41 @@ export const idlFactory = ({ IDL }) => {
     'deleteEvent' : IDL.Func([IDL.Nat], [], []),
     'deleteMessage' : IDL.Func([IDL.Nat], [], []),
     'generateInviteCode' : IDL.Func([], [IDL.Text], []),
-    'getAllMembers' : IDL.Func(
+    'getAllRSVPs' : IDL.Func([], [IDL.Vec(RSVP)], ['query']),
+    'getAllUsers' : IDL.Func(
         [],
         [IDL.Vec(IDL.Tuple(IDL.Principal, UserProfile))],
         ['query'],
       ),
-    'getAllRSVPs' : IDL.Func([], [IDL.Vec(RSVP)], ['query']),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getEvents' : IDL.Func([], [IDL.Vec(StudioEvent)], ['query']),
     'getInviteCodes' : IDL.Func([], [IDL.Vec(InviteCode)], ['query']),
     'getMessages' : IDL.Func([IDL.Text], [IDL.Vec(Message)], ['query']),
+    'getReactions' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Vec(IDL.Principal)))],
+        ['query'],
+      ),
     'getRoomAvailability' : IDL.Func([], [IDL.Vec(RoomSlot)], ['query']),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UserProfile)],
         ['query'],
       ),
-    'isAdminAssigned' : IDL.Func([], [IDL.Bool], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'isCallerApproved' : IDL.Func([], [IDL.Bool], ['query']),
     'isCallerRegistered' : IDL.Func([], [IDL.Bool], ['query']),
     'listApprovals' : IDL.Func([], [IDL.Vec(UserApprovalInfo)], ['query']),
     'postMessage' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat], []),
     'register' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [], []),
-  'registerWithInviteCode' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Opt(IDL.Text)],
-        [],
-        [],
-      ),
+    'removeUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'requestApproval' : IDL.Func([], [], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'setApproval' : IDL.Func([IDL.Principal, ApprovalStatus], [], []),
     'setRoomAvailability' : IDL.Func([IDL.Vec(RoomSlot)], [], []),
     'submitRSVP' : IDL.Func([IDL.Text, IDL.Bool, IDL.Text], [], []),
-    'updateMemberRole' : IDL.Func([IDL.Principal, AppUserRole], [], []),
+    'unbanUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
   });
 };
 
