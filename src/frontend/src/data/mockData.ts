@@ -248,16 +248,12 @@ export const INITIAL_POSTS: Post[] = [
 // Availability Grid (rooms × days)
 // ============================================================
 
-export type RoomName = "Room 1 Rehearsal" | "Room 2 Recording" | "Control Room";
-export const ROOMS: RoomName[] = [
-  "Room 1 Rehearsal",
-  "Room 2 Recording",
-  "Control Room",
-];
+export type RoomName = "Room 1" | "Room 2" | "Room 3";
+export const ROOMS: RoomName[] = ["Room 1", "Room 2", "Room 3"];
 export const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export const INITIAL_AVAILABILITY: Record<RoomName, AvailabilitySlot[]> = {
-  "Room 1 Rehearsal": [
+  "Room 1": [
     { status: "available" },
     { status: "available" },
     { status: "partial", note: "PM booked" },
@@ -266,7 +262,7 @@ export const INITIAL_AVAILABILITY: Record<RoomName, AvailabilitySlot[]> = {
     { status: "booked", note: "Full day" },
     { status: "available" },
   ],
-  "Room 2 Recording": [
+  "Room 2": [
     { status: "available" },
     { status: "partial", note: "AM session" },
     { status: "booked", note: "Full day" },
@@ -275,7 +271,7 @@ export const INITIAL_AVAILABILITY: Record<RoomName, AvailabilitySlot[]> = {
     { status: "booked", note: "Full day" },
     { status: "closed" },
   ],
-  "Control Room": [
+  "Room 3": [
     { status: "closed" },
     { status: "available" },
     { status: "available" },
@@ -314,7 +310,7 @@ export const INITIAL_EVENTS: CalendarEvent[] = [
     id: "event-2",
     title: "Room 2 Maintenance Day 🔧",
     description:
-      "Scheduled maintenance on recording equipment. Room 2 will be unavailable all day. Room 1 and Control Room open as normal.",
+      "Scheduled maintenance on recording equipment. Room 2 will be unavailable all day. Room 1 and Room 3 open as normal.",
     startDate: getDateOffset(7, 9),
     endDate: getDateOffset(7, 17),
     allDay: true,
@@ -711,14 +707,14 @@ export const INITIAL_GEAR: GearItem[] = [
     name: "Focusrite Scarlett 18i20",
     category: "Recording",
     status: "in-use",
-    notes: "Control Room. In use during client session.",
+    notes: "Room 3. In use during client session.",
   },
   {
     id: "gear-5",
     name: "Yamaha HS8 Studio Monitors",
     category: "Monitors",
     status: "available",
-    notes: "Control Room.",
+    notes: "Room 3.",
   },
   {
     id: "gear-6",

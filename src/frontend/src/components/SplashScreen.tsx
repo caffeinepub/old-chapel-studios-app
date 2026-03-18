@@ -54,7 +54,7 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
               className="w-24 h-24 rounded-2xl overflow-hidden bg-white shadow-2xl"
             >
               <img
-                src="/assets/uploads/Screenshot-2026-03-16-at-20.05.05-1.png"
+                src="/assets/uploads/Logo-1.png"
                 alt="Old Chapel Studios"
                 className="w-full h-full object-contain"
               />

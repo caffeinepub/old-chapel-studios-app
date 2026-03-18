@@ -10,11 +10,8 @@ import Principal "mo:core/Principal";
 import AccessControl "authorization/access-control";
 import MixinAuthorization "authorization/MixinAuthorization";
 import MixinStorage "blob-storage/Mixin";
-import UserApproval "user-approval/approval";
 import InviteLinksModule "invite-links/invite-links-module";
-
-
-// Specify the data migration function in with-clause
+import UserApproval "user-approval/approval";
 
 actor {
   // Hardcoded admin principal
@@ -25,61 +22,11 @@ actor {
 
   // Keep component state vars for stable variable compatibility
   let accessControlState = AccessControl.initState();
-  include MixinAuthorization(accessControlState);
-  include MixinStorage();
-
   let inviteState = InviteLinksModule.initState();
   let approvalState = UserApproval.initState(accessControlState);
 
-  // ====== Components Delegation ======
-
-  // Invite links
-  public shared ({ caller }) func generateInviteCode() : async Text {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can generate invite codes");
-    };
-    InviteLinksModule.generateInviteCode(inviteState, "random");
-    "random";
-  };
-
-  public shared func submitRSVP(name : Text, attending : Bool, inviteCode : Text) : async () {
-    InviteLinksModule.submitRSVP(inviteState, name, attending, inviteCode);
-  };
-
-  public query ({ caller }) func getAllRSVPs() : async [InviteLinksModule.RSVP] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can view RSVPs");
-    };
-    InviteLinksModule.getAllRSVPs(inviteState);
-  };
-
-  public query ({ caller }) func getInviteCodes() : async [InviteLinksModule.InviteCode] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can view invite codes");
-    };
-    InviteLinksModule.getInviteCodes(inviteState);
-  };
-
-  // User Approval
-  public shared ({ caller }) func requestApproval() : async () {
-    UserApproval.requestApproval(approvalState, caller);
-  };
-
-  public shared ({ caller }) func setApproval(user : Principal, status : UserApproval.ApprovalStatus) : async () {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can perform this action");
-    };
-    UserApproval.setApproval(approvalState, user, status);
-  };
-
-  public query ({ caller }) func listApprovals() : async [UserApproval.UserApprovalInfo] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-      Runtime.trap("Unauthorized: Only admins can perform this action");
-    };
-    UserApproval.listApprovals(approvalState);
-  };
-
-  // ====== App ======
+  include MixinAuthorization(accessControlState);
+  include MixinStorage();
 
   // Users
   public type AppUserRole = {
@@ -419,13 +366,12 @@ actor {
   };
 
   public shared ({ caller }) func deleteEvent(id : Nat) : async () {
-    if (not AccessControl.hasPermission(accessControlState, caller, #user)) { Runtime.trap("Not registered") };
+    if (not isHardcodedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only admins can delete events");
+    };
     switch (events.get(id)) {
       case (null) { Runtime.trap("Event not found") };
-      case (?event) {
-        if (event.createdBy != caller) {
-          Runtime.trap("Only the creator can delete this event");
-        };
+      case (?_) {
         events.remove(id);
       };
     };
@@ -443,11 +389,59 @@ actor {
   var roomSlots : [RoomSlot] = [];
 
   public shared ({ caller }) func setRoomAvailability(slots : [RoomSlot]) : async () {
-    if (not AccessControl.hasPermission(accessControlState, caller, #user)) { Runtime.trap("Not registered") };
+    if (not isHardcodedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only admins can set room availability");
+    };
     roomSlots := slots;
   };
 
   public query func getRoomAvailability() : async [RoomSlot] {
     roomSlots;
+  };
+
+  // ========== New Functions for Invite Links and User Approval ==========
+  public query ({ caller }) func getAllRSVPs() : async [InviteLinksModule.RSVP] {
+    if (not isHardcodedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only admins can view RSVPs");
+    };
+    InviteLinksModule.getAllRSVPs(inviteState);
+  };
+
+  public query ({ caller }) func getInviteCodes() : async [InviteLinksModule.InviteCode] {
+    if (not isHardcodedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only admins can view invite codes");
+    };
+    InviteLinksModule.getInviteCodes(inviteState);
+  };
+
+  public func submitRSVP(name : Text, attending : Bool, inviteCode : Text) : async () {
+    InviteLinksModule.submitRSVP(inviteState, name, attending, inviteCode);
+  };
+
+  public shared ({ caller }) func requestApproval() : async () {
+    UserApproval.requestApproval(approvalState, caller);
+  };
+
+  public shared ({ caller }) func setApproval(user : Principal, status : UserApproval.ApprovalStatus) : async () {
+    if (not isHardcodedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+    UserApproval.setApproval(approvalState, user, status);
+  };
+
+  public query ({ caller }) func listApprovals() : async [UserApproval.UserApprovalInfo] {
+    if (not isHardcodedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+    UserApproval.listApprovals(approvalState);
+  };
+
+  public shared ({ caller }) func generateInviteCode() : async Text {
+    if (not isHardcodedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only admins can generate invite codes");
+    };
+    let code = InviteLinksModule.generateUUID(Blob.empty());
+    InviteLinksModule.generateInviteCode(inviteState, code);
+    code;
   };
 };

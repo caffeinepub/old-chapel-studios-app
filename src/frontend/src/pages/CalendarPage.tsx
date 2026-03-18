@@ -9,6 +9,7 @@ import {
   INITIAL_EVENTS,
   getUserById,
 } from "@/data/mockData";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import {
   Calendar,
   CheckCircle,
@@ -18,6 +19,7 @@ import {
   HelpCircle,
   Plus,
   RefreshCw,
+  Trash2,
   X,
   XCircle,
 } from "lucide-react";
@@ -66,6 +68,7 @@ function sameDay(a: Date, b: Date): boolean {
 
 export default function CalendarPage() {
   const today = new Date();
+  const { isAdmin } = useIsAdmin();
   const [view, setView] = useState<CalendarView>("month");
   const [displayDate, setDisplayDate] = useState(today);
   const [events, setEvents] = useState<CalendarEvent[]>(INITIAL_EVENTS);
@@ -103,6 +106,11 @@ export default function CalendarPage() {
 
   const handleRSVP = (eventId: string, status: RSVPStatus) => {
     setRsvpStatus((p) => ({ ...p, [eventId]: status }));
+  };
+
+  const handleDeleteEvent = (id: string) => {
+    setEvents((prev) => prev.filter((e) => e.id !== id));
+    setSelectedEvent(null);
   };
 
   const handleAddEvent = () => {
@@ -418,16 +426,18 @@ export default function CalendarPage() {
         </div>
       </main>
 
-      {/* Add Event FAB */}
-      <button
-        type="button"
-        onClick={() => setShowAddEvent(true)}
-        data-ocid="calendar.add_event.button"
-        className="fixed bottom-20 right-4 w-14 h-14 rounded-2xl flex items-center justify-center shadow-orange transition-all hover:scale-105 active:scale-95 z-40"
-        style={{ backgroundColor: "#FF4500" }}
-      >
-        <Plus className="w-7 h-7 text-white" />
-      </button>
+      {/* Add Event FAB — admin only */}
+      {isAdmin && (
+        <button
+          type="button"
+          onClick={() => setShowAddEvent(true)}
+          data-ocid="calendar.add_event.button"
+          className="fixed bottom-20 right-4 w-14 h-14 rounded-2xl flex items-center justify-center shadow-orange transition-all hover:scale-105 active:scale-95 z-40"
+          style={{ backgroundColor: "#FF4500" }}
+        >
+          <Plus className="w-7 h-7 text-white" />
+        </button>
+      )}
 
       {/* Event Detail Modal */}
       <AnimatePresence>
@@ -463,13 +473,26 @@ export default function CalendarPage() {
                 >
                   {selectedEvent.title}
                 </h2>
-                <button
-                  type="button"
-                  onClick={() => setSelectedEvent(null)}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-accent transition-colors flex-shrink-0"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      data-ocid="calendar.event.delete_button"
+                      onClick={() => handleDeleteEvent(selectedEvent.id)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors hover:bg-red-500/20"
+                      title="Delete event"
+                    >
+                      <Trash2 className="w-4 h-4 text-red-500" />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEvent(null)}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-accent transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
 
               <div className="flex flex-col gap-2 text-sm text-muted-foreground">

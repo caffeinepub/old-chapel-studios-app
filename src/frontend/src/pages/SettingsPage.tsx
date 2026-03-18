@@ -49,24 +49,9 @@ export default function SettingsPage() {
     if (!actor) return;
     actor
       .getCallerUserProfile()
-      .then(async (rawProfile) => {
+      .then((rawProfile) => {
         if (rawProfile) {
-          // If the user is the hardcoded admin principal but has a non-admin role,
-          // automatically claim the admin role to fix existing accounts.
-          const ADMIN_PRINCIPAL =
-            "ulyt5-slv4a-xrfbx-seije-74i6r-4nkkh-ydqng-hgdb2-r3tlc-tkvp4-hae";
-          let profile = rawProfile;
-          if (
-            profile.role !== AppUserRole.admin &&
-            identity?.getPrincipal().toText() === ADMIN_PRINCIPAL
-          ) {
-            try {
-              await (actor as any).claimAdminRole();
-              profile = { ...profile, role: AppUserRole.admin };
-            } catch {
-              // ignore — not critical
-            }
-          }
+          const profile = rawProfile;
           const initials = profile.displayName
             ? profile.displayName
                 .split(" ")
@@ -92,7 +77,7 @@ export default function SettingsPage() {
       .catch(() => {
         setProfileLoaded(true);
       });
-  }, [actor, identity]);
+  }, [actor]);
 
   const principalText = identity ? identity.getPrincipal().toText() : "";
   const principalShort =

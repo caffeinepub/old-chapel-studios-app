@@ -15,7 +15,7 @@ interface Props {
 
 export default function OnboardingScreen({ onApproved, initialError }: Props) {
   const { login, isLoggingIn, identity, loginError } = useInternetIdentity();
-  const { actor, isFetching } = useActor();
+  const { actor } = useActor();
   const actorRef = useRef(actor);
   useEffect(() => {
     actorRef.current = actor;
@@ -61,7 +61,6 @@ export default function OnboardingScreen({ onApproved, initialError }: Props) {
         }
       }
     } catch (_e: unknown) {
-      // Show a clean, user-friendly message — not raw ICP rejection text
       setError("Could not reach the server. Please try again.");
       setScreen("home");
     } finally {
@@ -103,7 +102,9 @@ export default function OnboardingScreen({ onApproved, initialError }: Props) {
     }
   }
 
-  const busy = loading || isLoggingIn || waitingForActor || isFetching;
+  // isFetching from useActor must NOT be included here — it would freeze the
+  // login buttons before the user has done anything if the backend is slow.
+  const busy = loading || isLoggingIn || waitingForActor;
 
   return (
     <div
@@ -112,13 +113,24 @@ export default function OnboardingScreen({ onApproved, initialError }: Props) {
       style={{ backgroundColor: "oklch(0.13 0.008 50)" }}
     >
       <div className="w-full max-w-sm space-y-6">
-        <div className="text-center space-y-1">
-          <h1 className="text-2xl font-bold" style={{ color: "#FF4500" }}>
-            Old Chapel Studios
-          </h1>
-          <p className="text-sm" style={{ color: "oklch(0.6 0.01 50)" }}>
-            Community hub
-          </p>
+        <div className="text-center space-y-3">
+          <div className="flex justify-center">
+            <div className="w-[72px] h-[72px] rounded-full bg-white flex items-center justify-center overflow-hidden shadow-lg">
+              <img
+                src="/assets/uploads/Logo-1.png"
+                alt="Old Chapel Studios logo"
+                className="w-full h-full object-contain"
+              />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <h1 className="text-2xl font-bold" style={{ color: "#FF4500" }}>
+              Old Chapel Studios
+            </h1>
+            <p className="text-sm" style={{ color: "oklch(0.6 0.01 50)" }}>
+              Community hub
+            </p>
+          </div>
         </div>
 
         {screen === "checking" && (

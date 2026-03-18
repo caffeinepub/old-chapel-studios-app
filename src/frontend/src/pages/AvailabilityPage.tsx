@@ -5,6 +5,7 @@ import {
   INITIAL_AVAILABILITY,
   ROOMS,
 } from "@/data/mockData";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { ChevronLeft, ChevronRight, ExternalLink, Info } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
@@ -23,6 +24,13 @@ const STATUS_LABELS: Record<AvailabilitySlot["status"], string> = {
   closed: "Closed",
 };
 
+const STATUS_CYCLE: AvailabilitySlot["status"][] = [
+  "available",
+  "partial",
+  "booked",
+  "closed",
+];
+
 function getWeekDates(offset: number): Date[] {
   const now = new Date();
   const day = now.getDay();
@@ -35,9 +43,26 @@ function getWeekDates(offset: number): Date[] {
   });
 }
 
+type AvailabilityState = Record<string, AvailabilitySlot[]>;
+
 export default function AvailabilityPage() {
   const [weekOffset, setWeekOffset] = useState(0);
+  const [availability, setAvailability] = useState<AvailabilityState>(
+    INITIAL_AVAILABILITY as AvailabilityState,
+  );
+  const { isAdmin } = useIsAdmin();
   const weekDates = getWeekDates(weekOffset);
+
+  const cycleStatus = (room: string, dayIdx: number) => {
+    if (!isAdmin) return;
+    setAvailability((prev) => {
+      const slots = [...prev[room]];
+      const current = slots[dayIdx].status;
+      const nextIdx = (STATUS_CYCLE.indexOf(current) + 1) % STATUS_CYCLE.length;
+      slots[dayIdx] = { status: STATUS_CYCLE[nextIdx] };
+      return { ...prev, [room]: slots };
+    });
+  };
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -50,7 +75,7 @@ export default function AvailabilityPage() {
             <button
               type="button"
               onClick={() => setWeekOffset((p) => p - 1)}
-              data-ocid="availability.prev_week.button"
+              data-ocid="availability.pagination_prev"
               className="flex items-center gap-1 text-sm font-medium px-3 py-2 rounded-xl hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
             >
               <ChevronLeft className="w-4 h-4" />
@@ -90,13 +115,29 @@ export default function AvailabilityPage() {
             <button
               type="button"
               onClick={() => setWeekOffset((p) => p + 1)}
-              data-ocid="availability.next_week.button"
+              data-ocid="availability.pagination_next"
               className="flex items-center gap-1 text-sm font-medium px-3 py-2 rounded-xl hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
             >
               Next
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
+
+          {/* Admin hint */}
+          {isAdmin && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-2 mb-3 p-2.5 rounded-xl text-xs font-medium"
+              style={{
+                backgroundColor: "oklch(0.62 0.22 40 / 0.1)",
+                border: "1px solid oklch(0.62 0.22 40 / 0.25)",
+                color: "#FFA500",
+              }}
+            >
+              ✏️ Admin mode — tap any cell to cycle its availability status
+            </motion.div>
+          )}
 
           {/* Urgent alert */}
           {weekOffset === 0 && (
@@ -127,7 +168,7 @@ export default function AvailabilityPage() {
             {/* Header row */}
             <div
               className="grid"
-              style={{ gridTemplateColumns: "120px repeat(7, 1fr)" }}
+              style={{ gridTemplateColumns: "100px repeat(7, 1fr)" }}
             >
               <div
                 className="p-3 text-xs font-semibold text-muted-foreground"
@@ -167,7 +208,7 @@ export default function AvailabilityPage() {
               <div
                 key={room}
                 className="grid"
-                style={{ gridTemplateColumns: "120px repeat(7, 1fr)" }}
+                style={{ gridTemplateColumns: "100px repeat(7, 1fr)" }}
               >
                 <div
                   className="p-3 flex flex-col justify-center"
@@ -180,21 +221,20 @@ export default function AvailabilityPage() {
                   }}
                 >
                   <p className="text-xs font-semibold text-foreground">
-                    {room.split(" ")[0]} {room.split(" ")[1]}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    {room.includes("Rehearsal")
-                      ? "Rehearsal"
-                      : room.includes("Recording")
-                        ? "Recording"
-                        : "Control"}
+                    {room}
                   </p>
                 </div>
 
-                {INITIAL_AVAILABILITY[room].map((slot, dayIdx) => (
-                  <div
+                {(
+                  availability[room] ??
+                  INITIAL_AVAILABILITY[
+                    room as keyof typeof INITIAL_AVAILABILITY
+                  ]
+                ).map((slot, dayIdx) => (
+                  <button
+                    type="button"
                     key={`${room}-${DAYS[dayIdx]}`}
-                    className="flex flex-col items-center justify-center p-2 gap-1"
+                    className="flex flex-col items-center justify-center p-2 gap-1 transition-colors"
                     style={{
                       borderBottom:
                         roomIdx < ROOMS.length - 1
@@ -202,14 +242,22 @@ export default function AvailabilityPage() {
                           : "none",
                       borderRight:
                         dayIdx < 6 ? "1px solid oklch(0.28 0.015 45)" : "none",
+                      cursor: isAdmin ? "pointer" : "default",
+                      backgroundColor: isAdmin ? "transparent" : "transparent",
                     }}
-                    title={`${room} — ${DAYS[dayIdx]}: ${slot.note || STATUS_LABELS[slot.status]}`}
+                    onClick={() => cycleStatus(room, dayIdx)}
+                    title={`${room} — ${DAYS[dayIdx]}: ${slot.note || STATUS_LABELS[slot.status]}${
+                      isAdmin ? " (click to change)" : ""
+                    }`}
                   >
                     <span
-                      className="w-4 h-4 rounded-full flex-shrink-0"
+                      className="w-4 h-4 rounded-full flex-shrink-0 transition-all"
                       style={{
                         backgroundColor: STATUS_COLORS[slot.status],
                         opacity: slot.status === "closed" ? 0.3 : 1,
+                        boxShadow: isAdmin
+                          ? "0 0 0 2px oklch(0.62 0.22 40 / 0.15)"
+                          : "none",
                       }}
                     />
                     {slot.note && (
@@ -217,7 +265,7 @@ export default function AvailabilityPage() {
                         {slot.note}
                       </span>
                     )}
-                  </div>
+                  </button>
                 ))}
               </div>
             ))}
@@ -287,21 +335,10 @@ export default function AvailabilityPage() {
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
                   style={{ backgroundColor: "oklch(0.62 0.22 40 / 0.15)" }}
                 >
-                  {room.includes("Rehearsal")
-                    ? "🎸"
-                    : room.includes("Recording")
-                      ? "🎙️"
-                      : "🎛️"}
+                  🎵
                 </div>
                 <div>
                   <p className="text-sm font-semibold">{room}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {room.includes("Rehearsal")
-                      ? "Full backline, PA, 4-piece drum kit"
-                      : room.includes("Recording")
-                        ? "Isolation booths, acoustic treatment"
-                        : "DAW, full monitoring, mixing desk"}
-                  </p>
                 </div>
               </div>
             ))}

@@ -180,12 +180,12 @@ export interface backendInterface {
     _caffeineStorageUpdateGatewayPrincipals(): Promise<void>;
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
     addReaction(messageId: bigint, emoji: string): Promise<void>;
+    adminDeleteMessage(messageId: bigint): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     banUser(user: Principal): Promise<string>;
     createEvent(title: string, description: string, startTime: bigint, endTime: bigint, room: string | null): Promise<bigint>;
     deleteEvent(id: bigint): Promise<void>;
     deleteMessage(messageId: bigint): Promise<void>;
-    adminDeleteMessage(messageId: bigint): Promise<void>;
     generateInviteCode(): Promise<string>;
     getAllRSVPs(): Promise<Array<RSVP>>;
     getAllUsers(): Promise<Array<[Principal, UserProfile]>>;
@@ -326,6 +326,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async adminDeleteMessage(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.adminDeleteMessage(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.adminDeleteMessage(arg0);
+            return result;
+        }
+    }
     async assignCallerUserRole(arg0: Principal, arg1: UserRole): Promise<void> {
         if (this.processError) {
             try {
@@ -393,20 +407,6 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.deleteMessage(arg0);
-            return result;
-        }
-    }
-    async adminDeleteMessage(arg0: bigint): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.adminDeleteMessage(arg0);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.adminDeleteMessage(arg0);
             return result;
         }
     }

@@ -120,6 +120,7 @@ export const idlService = IDL.Service({
   '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'addReaction' : IDL.Func([IDL.Nat, IDL.Text], [], []),
+  'adminDeleteMessage' : IDL.Func([IDL.Nat], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'banUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
   'createEvent' : IDL.Func(
@@ -128,7 +129,6 @@ export const idlService = IDL.Service({
       [],
     ),
   'deleteEvent' : IDL.Func([IDL.Nat], [], []),
-  'adminDeleteMessage' : IDL.Func([IDL.Nat], [], []),
   'deleteMessage' : IDL.Func([IDL.Nat], [], []),
   'generateInviteCode' : IDL.Func([], [IDL.Text], []),
   'getAllRSVPs' : IDL.Func([], [IDL.Vec(RSVP)], ['query']),
@@ -283,6 +283,7 @@ export const idlFactory = ({ IDL }) => {
     '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'addReaction' : IDL.Func([IDL.Nat, IDL.Text], [], []),
+    'adminDeleteMessage' : IDL.Func([IDL.Nat], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'banUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'createEvent' : IDL.Func(
@@ -291,7 +292,6 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'deleteEvent' : IDL.Func([IDL.Nat], [], []),
-    'adminDeleteMessage' : IDL.Func([IDL.Nat], [], []),
     'deleteMessage' : IDL.Func([IDL.Nat], [], []),
     'generateInviteCode' : IDL.Func([], [IDL.Text], []),
     'getAllRSVPs' : IDL.Func([], [IDL.Vec(RSVP)], ['query']),

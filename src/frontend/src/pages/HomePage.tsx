@@ -1,5 +1,4 @@
 import AppHeader from "@/components/AppHeader";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +15,16 @@ import {
   formatRelativeTime,
   getUserById,
 } from "@/data/mockData";
-import { Hash, MessageCircle, Paperclip, Pin, Plus, X } from "lucide-react";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
+import {
+  Hash,
+  MessageCircle,
+  Paperclip,
+  Pin,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 
@@ -30,6 +38,7 @@ const STATUS_COLORS = {
 };
 
 export default function HomePage() {
+  const { isAdmin } = useIsAdmin();
   const [posts, setPosts] = useState<Post[]>([]);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [newPost, setNewPost] = useState({
@@ -53,6 +62,10 @@ export default function HomePage() {
           : p,
       ),
     );
+  };
+
+  const handleDeletePost = (postId: string) => {
+    setPosts((prev) => prev.filter((p) => p.id !== postId));
   };
 
   const handleCreatePost = () => {
@@ -140,9 +153,7 @@ export default function HomePage() {
                   {ROOMS.map((room) => (
                     <tr key={room}>
                       <td className="text-foreground/80 py-1.5 pr-2 whitespace-nowrap text-[11px]">
-                        {room
-                          .replace(" Rehearsal", "")
-                          .replace(" Recording", "")}
+                        {room}
                       </td>
                       {INITIAL_AVAILABILITY[room].map((slot, i) => (
                         <td key={DAYS[i]} className="text-center py-1.5 px-1">
@@ -222,7 +233,7 @@ export default function HomePage() {
                   data-ocid={`home.post.item.${ocidIndex}`}
                 >
                   <div
-                    className="rounded-xl border p-4"
+                    className="rounded-xl border p-4 relative"
                     style={{
                       backgroundColor: "oklch(0.17 0.01 45)",
                       borderColor: post.pinned
@@ -233,6 +244,19 @@ export default function HomePage() {
                         : "none",
                     }}
                   >
+                    {/* Admin delete button */}
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        data-ocid={`home.post.delete_button.${ocidIndex}`}
+                        onClick={() => handleDeletePost(post.id)}
+                        className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-red-500/20"
+                        title="Delete post"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                      </button>
+                    )}
+
                     {/* Announcement banner */}
                     {post.isAnnouncement && (
                       <div
