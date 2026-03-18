@@ -42,7 +42,7 @@ export default function AppHeader({
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg overflow-hidden bg-white shadow-orange-sm flex-shrink-0">
             <img
-              src="/assets/uploads/Logo-1.png"
+              src="/assets/uploads/Logo-1-1.png"
               alt=""
               className="w-full h-full object-contain"
             />

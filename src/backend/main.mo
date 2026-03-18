@@ -12,9 +12,9 @@ import MixinAuthorization "authorization/MixinAuthorization";
 import MixinStorage "blob-storage/Mixin";
 import InviteLinksModule "invite-links/invite-links-module";
 import UserApproval "user-approval/approval";
-import Migration "migration";
 
-(with migration = Migration.run)
+
+
 actor {
   // Constant for admin principal
   let ADMIN_PRINCIPAL : Text = "ulyt5-slv4a-xrfbx-seije-74i6r-4nkkh-ydqng-hgdb2-r3tlc-tkvp4-hae";

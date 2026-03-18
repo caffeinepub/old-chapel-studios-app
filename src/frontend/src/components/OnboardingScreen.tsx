@@ -117,7 +117,7 @@ export default function OnboardingScreen({ onApproved, initialError }: Props) {
           <div className="flex justify-center">
             <div className="w-[72px] h-[72px] rounded-full bg-white flex items-center justify-center overflow-hidden shadow-lg">
               <img
-                src="/assets/uploads/Logo-1.png"
+                src="/assets/uploads/Logo-1-1.png"
                 alt="Old Chapel Studios logo"
                 className="w-full h-full object-contain"
               />
