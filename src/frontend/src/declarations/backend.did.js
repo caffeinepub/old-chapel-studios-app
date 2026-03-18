@@ -61,6 +61,14 @@ export const StudioEvent = IDL.Record({
   'room' : IDL.Opt(IDL.Text),
   'description' : IDL.Text,
 });
+export const FreeTimeSlot = IDL.Record({
+  'id' : IDL.Nat,
+  'timeStart' : IDL.Text,
+  'note' : IDL.Text,
+  'room' : IDL.Text,
+  'dayLabel' : IDL.Text,
+  'timeEnd' : IDL.Text,
+});
 export const InviteCode = IDL.Record({
   'created' : Time,
   'code' : IDL.Text,
@@ -80,14 +88,6 @@ export const RoomSlot = IDL.Record({
   'room' : IDL.Text,
   'available' : IDL.Bool,
   'hourEnd' : IDL.Nat,
-});
-export const FreeTimeSlot = IDL.Record({
-  'id' : IDL.Nat,
-  'room' : IDL.Text,
-  'dayLabel' : IDL.Text,
-  'timeStart' : IDL.Text,
-  'timeEnd' : IDL.Text,
-  'note' : IDL.Text,
 });
 export const ApprovalStatus = IDL.Variant({
   'pending' : IDL.Null,
@@ -127,7 +127,11 @@ export const idlService = IDL.Service({
     ),
   '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
-  'addFreeTimeSlot' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text], [IDL.Nat], []),
+  'addFreeTimeSlot' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+      [IDL.Nat],
+      [],
+    ),
   'addReaction' : IDL.Func([IDL.Nat, IDL.Text], [], []),
   'adminDeleteMessage' : IDL.Func([IDL.Nat], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
@@ -235,6 +239,14 @@ export const idlFactory = ({ IDL }) => {
     'room' : IDL.Opt(IDL.Text),
     'description' : IDL.Text,
   });
+  const FreeTimeSlot = IDL.Record({
+    'id' : IDL.Nat,
+    'timeStart' : IDL.Text,
+    'note' : IDL.Text,
+    'room' : IDL.Text,
+    'dayLabel' : IDL.Text,
+    'timeEnd' : IDL.Text,
+  });
   const InviteCode = IDL.Record({
     'created' : Time,
     'code' : IDL.Text,
@@ -254,14 +266,6 @@ export const idlFactory = ({ IDL }) => {
     'room' : IDL.Text,
     'available' : IDL.Bool,
     'hourEnd' : IDL.Nat,
-  });
-  const FreeTimeSlot = IDL.Record({
-    'id' : IDL.Nat,
-    'room' : IDL.Text,
-    'dayLabel' : IDL.Text,
-    'timeStart' : IDL.Text,
-    'timeEnd' : IDL.Text,
-    'note' : IDL.Text,
   });
   const ApprovalStatus = IDL.Variant({
     'pending' : IDL.Null,
@@ -301,7 +305,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
-    'addFreeTimeSlot' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text], [IDL.Nat], []),
+    'addFreeTimeSlot' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+        [IDL.Nat],
+        [],
+      ),
     'addReaction' : IDL.Func([IDL.Nat, IDL.Text], [], []),
     'adminDeleteMessage' : IDL.Func([IDL.Nat], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),

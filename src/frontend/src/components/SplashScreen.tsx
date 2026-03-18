@@ -11,8 +11,8 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
   useEffect(() => {
     const timer = setTimeout(() => {
       setVisible(false);
-      setTimeout(onComplete, 400);
-    }, 2200);
+      setTimeout(onComplete, 300);
+    }, 1400);
     return () => clearTimeout(timer);
   }, [onComplete]);
 
@@ -23,7 +23,7 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
           key="splash"
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.4 }}
+          transition={{ duration: 0.3 }}
           style={{ backgroundColor: "#FF4500" }}
           className="fixed inset-0 z-[9999] flex flex-col items-center justify-center"
         >
@@ -40,7 +40,7 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
           <motion.div
             initial={{ opacity: 0, scale: 0.8, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
+            transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
             className="relative z-10 flex flex-col items-center gap-6"
           >
             {/* Chapel Icon */}
@@ -92,7 +92,7 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
             <motion.p
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4, duration: 0.5 }}
+              transition={{ delay: 0.3, duration: 0.4 }}
               className="text-white/80 text-sm font-medium tracking-widest uppercase"
               style={{ fontFamily: "'General Sans', sans-serif" }}
             >
@@ -103,7 +103,7 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.8 }}
+              transition={{ delay: 0.5 }}
               className="flex gap-1.5 mt-2"
             >
               {[0, 1, 2].map((i) => (
@@ -126,7 +126,7 @@ export default function SplashScreen({ onComplete }: SplashScreenProps) {
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 1.2 }}
+            transition={{ delay: 0.8 }}
             className="absolute bottom-12 text-white/50 text-xs tracking-widest uppercase"
           >
             Leeds, UK

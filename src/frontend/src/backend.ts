@@ -118,14 +118,6 @@ export interface RoomSlot {
     available: boolean;
     hourEnd: bigint;
 }
-export interface FreeTimeSlot {
-    id: bigint;
-    room: string;
-    dayLabel: string;
-    timeStart: string;
-    timeEnd: string;
-    note: string;
-}
 export interface RSVP {
     name: string;
     inviteCode: string;
@@ -135,6 +127,14 @@ export interface RSVP {
 export interface UserApprovalInfo {
     status: ApprovalStatus;
     principal: Principal;
+}
+export interface FreeTimeSlot {
+    id: bigint;
+    timeStart: string;
+    note: string;
+    room: string;
+    dayLabel: string;
+    timeEnd: string;
 }
 export interface Message {
     id: bigint;
@@ -189,8 +189,6 @@ export interface backendInterface {
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
     addFreeTimeSlot(room: string, dayLabel: string, timeStart: string, timeEnd: string, note: string): Promise<bigint>;
     addReaction(messageId: bigint, emoji: string): Promise<void>;
-    getFreeTimeSlots(): Promise<Array<FreeTimeSlot>>;
-    removeFreeTimeSlot(id: bigint): Promise<void>;
     adminDeleteMessage(messageId: bigint): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     banUser(user: Principal): Promise<string>;
@@ -203,6 +201,7 @@ export interface backendInterface {
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getEvents(): Promise<Array<StudioEvent>>;
+    getFreeTimeSlots(): Promise<Array<FreeTimeSlot>>;
     getInviteCodes(): Promise<Array<InviteCode>>;
     getMessages(channelId: string): Promise<Array<Message>>;
     getReactions(messageId: bigint): Promise<Array<[string, Array<Principal>]>>;
@@ -214,6 +213,7 @@ export interface backendInterface {
     listApprovals(): Promise<Array<UserApprovalInfo>>;
     postMessage(channelId: string, content: string): Promise<bigint>;
     register(displayName: string, avatarUrl: string | null): Promise<void>;
+    removeFreeTimeSlot(id: bigint): Promise<void>;
     removeUser(user: Principal): Promise<string>;
     requestApproval(): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
@@ -323,20 +323,6 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async addReaction(arg0: bigint, arg1: string): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.addReaction(arg0, arg1);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.addReaction(arg0, arg1);
-            return result;
-        }
-    }
     async addFreeTimeSlot(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string): Promise<bigint> {
         if (this.processError) {
             try {
@@ -351,31 +337,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getFreeTimeSlots(): Promise<Array<FreeTimeSlot>> {
+    async addReaction(arg0: bigint, arg1: string): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.getFreeTimeSlots();
+                const result = await this.actor.addReaction(arg0, arg1);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.getFreeTimeSlots();
-            return result;
-        }
-    }
-    async removeFreeTimeSlot(arg0: bigint): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.removeFreeTimeSlot(arg0);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.removeFreeTimeSlot(arg0);
+            const result = await this.actor.addReaction(arg0, arg1);
             return result;
         }
     }
@@ -547,6 +519,20 @@ export class Backend implements backendInterface {
             return from_candid_vec_n23(this._uploadFile, this._downloadFile, result);
         }
     }
+    async getFreeTimeSlots(): Promise<Array<FreeTimeSlot>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getFreeTimeSlots();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getFreeTimeSlots();
+            return result;
+        }
+    }
     async getInviteCodes(): Promise<Array<InviteCode>> {
         if (this.processError) {
             try {
@@ -698,6 +684,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.register(arg0, to_candid_opt_n10(this._uploadFile, this._downloadFile, arg1));
+            return result;
+        }
+    }
+    async removeFreeTimeSlot(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.removeFreeTimeSlot(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.removeFreeTimeSlot(arg0);
             return result;
         }
     }

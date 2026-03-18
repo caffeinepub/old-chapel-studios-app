@@ -19,11 +19,11 @@ export type ApprovalStatus = { 'pending' : null } |
   { 'rejected' : null };
 export interface FreeTimeSlot {
   'id' : bigint,
+  'timeStart' : string,
+  'note' : string,
   'room' : string,
   'dayLabel' : string,
-  'timeStart' : string,
   'timeEnd' : string,
-  'note' : string,
 }
 export interface InviteCode {
   'created' : Time,
@@ -109,7 +109,10 @@ export interface _SERVICE {
   >,
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
-  'addFreeTimeSlot' : ActorMethod<[string, string, string, string, string], bigint>,
+  'addFreeTimeSlot' : ActorMethod<
+    [string, string, string, string, string],
+    bigint
+  >,
   'addReaction' : ActorMethod<[bigint, string], undefined>,
   'adminDeleteMessage' : ActorMethod<[bigint], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,

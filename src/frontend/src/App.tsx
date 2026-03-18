@@ -16,6 +16,28 @@ import { useEffect, useRef, useState } from "react";
 
 type AppState = "splash" | "onboarding" | "app" | "checking";
 
+const REGISTERED_CACHE_KEY = "ocs_registered_principal";
+
+function getCachedPrincipal(): string | null {
+  try {
+    return localStorage.getItem(REGISTERED_CACHE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function setCachedPrincipal(principal: string) {
+  try {
+    localStorage.setItem(REGISTERED_CACHE_KEY, principal);
+  } catch {}
+}
+
+function clearCachedPrincipal() {
+  try {
+    localStorage.removeItem(REGISTERED_CACHE_KEY);
+  } catch {}
+}
+
 export default function App() {
   const [appState, setAppState] = useState<AppState>("splash");
   const [splashDone, setSplashDone] = useState(false);
@@ -25,33 +47,66 @@ export default function App() {
   const { identity, isInitializing } = useInternetIdentity();
   const { actor, isFetching: actorFetching } = useActor();
   const checkingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bgVerifiedRef = useRef(false);
 
   // Advance past splash once animation done AND auth initialised
   useEffect(() => {
     if (!splashDone || isInitializing) return;
     if (identity) {
-      setAppState("checking");
+      const principal = identity.getPrincipal().toString();
+      const cached = getCachedPrincipal();
+      if (cached === principal) {
+        // Known registered user — go straight to app, verify in background
+        bgVerifiedRef.current = false;
+        setConnectError(null);
+        setAppState("app");
+      } else {
+        setAppState("checking");
+      }
     } else {
       setConnectError(null);
       setAppState("onboarding");
     }
   }, [splashDone, isInitializing, identity]);
 
+  // Background verification for cached logins
+  useEffect(() => {
+    if (appState !== "app" || bgVerifiedRef.current || !actor || actorFetching)
+      return;
+    if (!identity) return;
+    const principal = identity.getPrincipal().toString();
+    if (getCachedPrincipal() !== principal) return;
+
+    bgVerifiedRef.current = true;
+    actor
+      .isCallerRegistered()
+      .then((registered) => {
+        if (!registered) {
+          clearCachedPrincipal();
+          setConnectError(null);
+          setAppState("onboarding");
+        }
+      })
+      .catch(() => {
+        // Backend unreachable — stay in app optimistically, will fail on next action
+      });
+  }, [appState, actor, actorFetching, identity]);
+
   // Sign out if identity disappears while in the app
   useEffect(() => {
     if (appState === "app" && !identity) {
+      clearCachedPrincipal();
       setConnectError(null);
       setAppState("onboarding");
     }
   }, [identity, appState]);
 
-  // Hard timeout: if stuck on checking for >20s, bail out silently (no error shown)
+  // Hard timeout: if stuck on checking for >15s, bail out silently
   useEffect(() => {
     if (appState === "checking") {
       checkingTimeoutRef.current = setTimeout(() => {
-        // Do NOT set connectError here — no user action triggered this
         setAppState("onboarding");
-      }, 20000);
+      }, 15000);
     } else {
       if (checkingTimeoutRef.current) {
         clearTimeout(checkingTimeoutRef.current);
@@ -65,7 +120,7 @@ export default function App() {
     };
   }, [appState]);
 
-  // Run access check once actor is ready
+  // Run access check once actor is ready (for non-cached logins)
   useEffect(() => {
     if (appState !== "checking") return;
 
@@ -75,24 +130,22 @@ export default function App() {
       return;
     }
 
-    // Still loading actor
     if (actorFetching) return;
-
-    // Actor failed to load — bail to onboarding silently (no error shown,
-    // the 20s timeout is the fallback if it never resolves)
     if (!actor) return;
 
     const checkAccess = async () => {
       try {
         const registered = await actor.isCallerRegistered();
         if (registered) {
+          const principal = identity.getPrincipal().toString();
+          setCachedPrincipal(principal);
           setAppState("app");
         } else {
+          clearCachedPrincipal();
           setConnectError(null);
           setAppState("onboarding");
         }
       } catch (e) {
-        // Active session existed but backend call failed — show error
         const msg = e instanceof Error ? e.message : String(e);
         setConnectError(msg);
         setAppState("onboarding");
@@ -103,6 +156,9 @@ export default function App() {
   }, [identity, actor, actorFetching, appState]);
 
   const handleApproved = () => {
+    if (identity) {
+      setCachedPrincipal(identity.getPrincipal().toString());
+    }
     setConnectError(null);
     setAppState("app");
   };

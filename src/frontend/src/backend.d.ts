@@ -29,14 +29,6 @@ export interface RoomSlot {
     available: boolean;
     hourEnd: bigint;
 }
-export interface FreeTimeSlot {
-    id: bigint;
-    room: string;
-    dayLabel: string;
-    timeStart: string;
-    timeEnd: string;
-    note: string;
-}
 export interface RSVP {
     name: string;
     inviteCode: string;
@@ -46,6 +38,14 @@ export interface RSVP {
 export interface UserApprovalInfo {
     status: ApprovalStatus;
     principal: Principal;
+}
+export interface FreeTimeSlot {
+    id: bigint;
+    timeStart: string;
+    note: string;
+    room: string;
+    dayLabel: string;
+    timeEnd: string;
 }
 export interface Message {
     id: bigint;
