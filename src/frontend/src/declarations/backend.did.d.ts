@@ -17,6 +17,14 @@ export type AppUserRole = { 'client' : null } |
 export type ApprovalStatus = { 'pending' : null } |
   { 'approved' : null } |
   { 'rejected' : null };
+export interface FreeTimeSlot {
+  'id' : bigint,
+  'room' : string,
+  'dayLabel' : string,
+  'timeStart' : string,
+  'timeEnd' : string,
+  'note' : string,
+}
 export interface InviteCode {
   'created' : Time,
   'code' : string,
@@ -101,6 +109,7 @@ export interface _SERVICE {
   >,
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'addFreeTimeSlot' : ActorMethod<[string, string, string, string, string], bigint>,
   'addReaction' : ActorMethod<[bigint, string], undefined>,
   'adminDeleteMessage' : ActorMethod<[bigint], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
@@ -117,6 +126,7 @@ export interface _SERVICE {
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getEvents' : ActorMethod<[], Array<StudioEvent>>,
+  'getFreeTimeSlots' : ActorMethod<[], Array<FreeTimeSlot>>,
   'getInviteCodes' : ActorMethod<[], Array<InviteCode>>,
   'getMessages' : ActorMethod<[string], Array<Message>>,
   'getReactions' : ActorMethod<[bigint], Array<[string, Array<Principal>]>>,
@@ -128,6 +138,7 @@ export interface _SERVICE {
   'listApprovals' : ActorMethod<[], Array<UserApprovalInfo>>,
   'postMessage' : ActorMethod<[string, string], bigint>,
   'register' : ActorMethod<[string, [] | [string]], undefined>,
+  'removeFreeTimeSlot' : ActorMethod<[bigint], undefined>,
   'removeUser' : ActorMethod<[Principal], string>,
   'requestApproval' : ActorMethod<[], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,

@@ -29,6 +29,14 @@ export interface RoomSlot {
     available: boolean;
     hourEnd: bigint;
 }
+export interface FreeTimeSlot {
+    id: bigint;
+    room: string;
+    dayLabel: string;
+    timeStart: string;
+    timeEnd: string;
+    note: string;
+}
 export interface RSVP {
     name: string;
     inviteCode: string;
@@ -79,6 +87,7 @@ export enum UserStatus {
     suspended = "suspended"
 }
 export interface backendInterface {
+    addFreeTimeSlot(room: string, dayLabel: string, timeStart: string, timeEnd: string, note: string): Promise<bigint>;
     addReaction(messageId: bigint, emoji: string): Promise<void>;
     adminDeleteMessage(messageId: bigint): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
@@ -92,6 +101,7 @@ export interface backendInterface {
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getEvents(): Promise<Array<StudioEvent>>;
+    getFreeTimeSlots(): Promise<Array<FreeTimeSlot>>;
     getInviteCodes(): Promise<Array<InviteCode>>;
     getMessages(channelId: string): Promise<Array<Message>>;
     getReactions(messageId: bigint): Promise<Array<[string, Array<Principal>]>>;
@@ -103,6 +113,7 @@ export interface backendInterface {
     listApprovals(): Promise<Array<UserApprovalInfo>>;
     postMessage(channelId: string, content: string): Promise<bigint>;
     register(displayName: string, avatarUrl: string | null): Promise<void>;
+    removeFreeTimeSlot(id: bigint): Promise<void>;
     removeUser(user: Principal): Promise<string>;
     requestApproval(): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;

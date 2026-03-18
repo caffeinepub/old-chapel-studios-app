@@ -399,6 +399,54 @@ actor {
     roomSlots;
   };
 
+  // ====== Free Time Slots ======
+  public type FreeTimeSlot = {
+    id : Nat;
+    room : Text;
+    dayLabel : Text;
+    timeStart : Text;
+    timeEnd : Text;
+    note : Text;
+  };
+
+  var nextFreeSlotId : Nat = 0;
+  let freeTimeSlots = Map.empty<Nat, FreeTimeSlot>();
+
+  public shared ({ caller }) func addFreeTimeSlot(
+    room : Text,
+    dayLabel : Text,
+    timeStart : Text,
+    timeEnd : Text,
+    note : Text,
+  ) : async Nat {
+    if (not isHardcodedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only admins can add time slots");
+    };
+    let slotId = nextFreeSlotId;
+    nextFreeSlotId += 1;
+    let slot : FreeTimeSlot = {
+      id = slotId;
+      room = room;
+      dayLabel = dayLabel;
+      timeStart = timeStart;
+      timeEnd = timeEnd;
+      note = note;
+    };
+    freeTimeSlots.add(slotId, slot);
+    slotId;
+  };
+
+  public shared ({ caller }) func removeFreeTimeSlot(id : Nat) : async () {
+    if (not isHardcodedAdmin(caller)) {
+      Runtime.trap("Unauthorized: Only admins can remove time slots");
+    };
+    freeTimeSlots.remove(id);
+  };
+
+  public query func getFreeTimeSlots() : async [FreeTimeSlot] {
+    freeTimeSlots.values().toArray();
+  };
+
   // ========== New Functions for Invite Links and User Approval ==========
   public query ({ caller }) func getAllRSVPs() : async [InviteLinksModule.RSVP] {
     if (not isHardcodedAdmin(caller)) {

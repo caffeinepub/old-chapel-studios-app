@@ -4,11 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  type CalendarEvent,
-  INITIAL_EVENTS,
-  getUserById,
-} from "@/data/mockData";
+import { useActor } from "@/hooks/useActor";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import {
   Calendar,
@@ -24,10 +20,22 @@ import {
   XCircle,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type CalendarView = "month" | "week" | "day";
 type RSVPStatus = "yes" | "no" | "maybe" | null;
+
+interface LocalEvent {
+  backendId: bigint;
+  id: string;
+  title: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  allDay: boolean;
+  color: string;
+  room?: string;
+}
 
 const DAYS_OF_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTHS = [
@@ -48,13 +56,11 @@ const MONTHS = [
 function getDaysInMonth(year: number, month: number): (Date | null)[] {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
-  const startDow = (firstDay.getDay() + 6) % 7; // Monday = 0
+  const startDow = (firstDay.getDay() + 6) % 7;
   const days: (Date | null)[] = [];
-
   for (let i = 0; i < startDow; i++) days.push(null);
   for (let d = 1; d <= lastDay.getDate(); d++)
     days.push(new Date(year, month, d));
-
   return days;
 }
 
@@ -69,14 +75,15 @@ function sameDay(a: Date, b: Date): boolean {
 export default function CalendarPage() {
   const today = new Date();
   const { isAdmin } = useIsAdmin();
+  const { actor } = useActor();
   const [view, setView] = useState<CalendarView>("month");
   const [displayDate, setDisplayDate] = useState(today);
-  const [events, setEvents] = useState<CalendarEvent[]>(INITIAL_EVENTS);
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(
-    null,
-  );
+  const [events, setEvents] = useState<LocalEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedEvent, setSelectedEvent] = useState<LocalEvent | null>(null);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [rsvpStatus, setRsvpStatus] = useState<Record<string, RSVPStatus>>({});
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [newEvent, setNewEvent] = useState({
     title: "",
     description: "",
@@ -85,8 +92,38 @@ export default function CalendarPage() {
     endDate: "",
     endTime: "20:00",
     allDay: false,
-    recurring: "",
   });
+
+  const loadEvents = useCallback(async () => {
+    if (!actor) return;
+    try {
+      const raw = await actor.getEvents();
+      const mapped: LocalEvent[] = raw.map((e) => {
+        const startMs = Number(e.startTime) / 1_000_000;
+        const endMs = Number(e.endTime) / 1_000_000;
+        return {
+          backendId: e.id,
+          id: `event-${e.id.toString()}`,
+          title: e.title,
+          description: e.description,
+          startDate: new Date(startMs).toISOString(),
+          endDate: new Date(endMs).toISOString(),
+          allDay: false,
+          color: "#FF4500",
+          room: e.room ?? undefined,
+        };
+      });
+      setEvents(mapped);
+    } catch (_) {
+      // silently ignore if not logged in
+    } finally {
+      setLoading(false);
+    }
+  }, [actor]);
+
+  useEffect(() => {
+    loadEvents();
+  }, [loadEvents]);
 
   const calDays = getDaysInMonth(
     displayDate.getFullYear(),
@@ -96,55 +133,66 @@ export default function CalendarPage() {
   const getEventsForDay = (date: Date) =>
     events.filter((e) => sameDay(new Date(e.startDate), date));
 
-  const handlePrevMonth = () => {
-    setDisplayDate((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+  const handleDeleteEvent = async (ev: LocalEvent) => {
+    if (!actor) return;
+    setDeleteError(null);
+    try {
+      await actor.deleteEvent(ev.backendId);
+      setEvents((prev) => prev.filter((e) => e.id !== ev.id));
+      setSelectedEvent(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setDeleteError(`Failed to delete: ${msg}`);
+    }
   };
 
-  const handleNextMonth = () => {
-    setDisplayDate((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1));
-  };
-
-  const handleRSVP = (eventId: string, status: RSVPStatus) => {
-    setRsvpStatus((p) => ({ ...p, [eventId]: status }));
-  };
-
-  const handleDeleteEvent = (id: string) => {
-    setEvents((prev) => prev.filter((e) => e.id !== id));
-    setSelectedEvent(null);
-  };
-
-  const handleAddEvent = () => {
-    if (!newEvent.title.trim() || !newEvent.startDate) return;
+  const handleAddEvent = async () => {
+    if (!actor || !newEvent.title.trim() || !newEvent.startDate) return;
     const startDT = new Date(
       `${newEvent.startDate}T${newEvent.allDay ? "00:00" : newEvent.startTime}`,
     );
     const endDT = new Date(
       `${newEvent.endDate || newEvent.startDate}T${newEvent.allDay ? "23:59" : newEvent.endTime}`,
     );
-    const ev: CalendarEvent = {
-      id: `event-${Date.now()}`,
-      title: newEvent.title,
-      description: newEvent.description,
-      startDate: startDT.toISOString(),
-      endDate: endDT.toISOString(),
-      allDay: newEvent.allDay,
-      recurring: newEvent.recurring || undefined,
-      rsvp: { yes: 0, no: 0, maybe: 0 },
-      creatorId: "user-1",
-      color: "#FF4500",
-    };
-    setEvents((p) => [...p, ev]);
-    setNewEvent({
-      title: "",
-      description: "",
-      startDate: "",
-      startTime: "18:00",
-      endDate: "",
-      endTime: "20:00",
-      allDay: false,
-      recurring: "",
-    });
-    setShowAddEvent(false);
+    try {
+      const startNs = BigInt(startDT.getTime()) * 1_000_000n;
+      const endNs = BigInt(endDT.getTime()) * 1_000_000n;
+      const id = await actor.createEvent(
+        newEvent.title,
+        newEvent.description,
+        startNs,
+        endNs,
+        null,
+      );
+      const created: LocalEvent = {
+        backendId: id,
+        id: `event-${id.toString()}`,
+        title: newEvent.title,
+        description: newEvent.description,
+        startDate: startDT.toISOString(),
+        endDate: endDT.toISOString(),
+        allDay: newEvent.allDay,
+        color: "#FF4500",
+      };
+      setEvents((p) => [...p, created]);
+      setNewEvent({
+        title: "",
+        description: "",
+        startDate: "",
+        startTime: "18:00",
+        endDate: "",
+        endTime: "20:00",
+        allDay: false,
+      });
+      setShowAddEvent(false);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(`Failed to add event: ${msg}`);
+    }
+  };
+
+  const handleRSVP = (eventId: string, status: RSVPStatus) => {
+    setRsvpStatus((p) => ({ ...p, [eventId]: status }));
   };
 
   return (
@@ -182,7 +230,11 @@ export default function CalendarPage() {
           <div className="flex items-center justify-between mb-3">
             <button
               type="button"
-              onClick={handlePrevMonth}
+              onClick={() =>
+                setDisplayDate(
+                  (d) => new Date(d.getFullYear(), d.getMonth() - 1, 1),
+                )
+              }
               className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-accent transition-colors"
             >
               <ChevronLeft className="w-5 h-5 text-muted-foreground" />
@@ -195,15 +247,25 @@ export default function CalendarPage() {
             </h2>
             <button
               type="button"
-              onClick={handleNextMonth}
+              onClick={() =>
+                setDisplayDate(
+                  (d) => new Date(d.getFullYear(), d.getMonth() + 1, 1),
+                )
+              }
               className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-accent transition-colors"
             >
               <ChevronRight className="w-5 h-5 text-muted-foreground" />
             </button>
           </div>
 
+          {loading && (
+            <p className="text-center text-sm text-muted-foreground py-8">
+              Loading events…
+            </p>
+          )}
+
           {/* Calendar Grid — Month View */}
-          {view === "month" && (
+          {!loading && view === "month" && (
             <div
               className="rounded-xl border overflow-hidden"
               style={{
@@ -211,7 +273,6 @@ export default function CalendarPage() {
                 borderColor: "oklch(0.28 0.015 45)",
               }}
             >
-              {/* Day headers */}
               <div className="grid grid-cols-7">
                 {DAYS_OF_WEEK.map((d) => (
                   <div
@@ -223,15 +284,13 @@ export default function CalendarPage() {
                   </div>
                 ))}
               </div>
-
-              {/* Day cells */}
               <div className="grid grid-cols-7">
                 {calDays.map((date, idx) => {
                   const dayEvents = date ? getEventsForDay(date) : [];
                   const isToday = date ? sameDay(date, today) : false;
                   const calKey = date
                     ? date.toISOString().split("T")[0]
-                    : `empty-${displayDate.getFullYear()}-${displayDate.getMonth()}-${idx}`;
+                    : `empty-${idx}`;
                   return (
                     <button
                       type="button"
@@ -249,9 +308,8 @@ export default function CalendarPage() {
                         cursor: dayEvents.length > 0 ? "pointer" : "default",
                       }}
                       onClick={() => {
-                        if (dayEvents.length > 0) {
+                        if (dayEvents.length > 0)
                           setSelectedEvent(dayEvents[0]);
-                        }
                       }}
                     >
                       {date && (
@@ -301,8 +359,8 @@ export default function CalendarPage() {
             </div>
           )}
 
-          {/* Upcoming events list (week/day fallback or below calendar) */}
-          {view !== "month" && (
+          {/* List view for week/day */}
+          {!loading && view !== "month" && (
             <div className="space-y-3">
               {events
                 .sort(
@@ -350,31 +408,19 @@ export default function CalendarPage() {
                           )}
                         </div>
                       </div>
-                      {event.recurring && (
-                        <RefreshCw className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <CheckCircle className="w-3 h-3 text-green-500" />
-                        {event.rsvp.yes} Yes
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <HelpCircle className="w-3 h-3 text-yellow-500" />
-                        {event.rsvp.maybe} Maybe
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <XCircle className="w-3 h-3 text-red-500" />
-                        {event.rsvp.no} No
-                      </span>
                     </div>
                   </motion.div>
                 ))}
+              {events.length === 0 && (
+                <p className="text-center text-sm text-muted-foreground py-8">
+                  No events yet.
+                </p>
+              )}
             </div>
           )}
 
           {/* Events list below month calendar */}
-          {view === "month" && (
+          {!loading && view === "month" && (
             <div className="mt-4 space-y-2">
               <h3 className="font-bold text-sm text-muted-foreground uppercase tracking-wider">
                 All Events
@@ -416,11 +462,13 @@ export default function CalendarPage() {
                           )}`}
                       </p>
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      {event.rsvp.yes + event.rsvp.maybe} going
-                    </div>
                   </motion.div>
                 ))}
+              {events.length === 0 && (
+                <p className="text-center text-sm text-muted-foreground py-6">
+                  No events yet.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -478,7 +526,7 @@ export default function CalendarPage() {
                     <button
                       type="button"
                       data-ocid="calendar.event.delete_button"
-                      onClick={() => handleDeleteEvent(selectedEvent.id)}
+                      onClick={() => handleDeleteEvent(selectedEvent)}
                       className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors hover:bg-red-500/20"
                       title="Delete event"
                     >
@@ -494,6 +542,10 @@ export default function CalendarPage() {
                   </button>
                 </div>
               </div>
+
+              {deleteError && (
+                <p className="text-xs text-red-400 px-1">{deleteError}</p>
+              )}
 
               <div className="flex flex-col gap-2 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2">
@@ -518,17 +570,8 @@ export default function CalendarPage() {
                     —{" "}
                     {new Date(selectedEvent.endDate).toLocaleTimeString(
                       "en-GB",
-                      {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      },
+                      { hour: "2-digit", minute: "2-digit" },
                     )}
-                  </div>
-                )}
-                {selectedEvent.recurring && (
-                  <div className="flex items-center gap-2">
-                    <RefreshCw className="w-4 h-4" />
-                    Repeats {selectedEvent.recurring}
                   </div>
                 )}
               </div>
@@ -536,6 +579,12 @@ export default function CalendarPage() {
               {selectedEvent.description && (
                 <p className="text-sm text-foreground/80 leading-relaxed">
                   {selectedEvent.description}
+                </p>
+              )}
+
+              {selectedEvent.room && (
+                <p className="text-xs text-muted-foreground">
+                  Room: {selectedEvent.room}
                 </p>
               )}
 
@@ -547,9 +596,6 @@ export default function CalendarPage() {
                 <div className="flex gap-2">
                   {(["yes", "no", "maybe"] as const).map((status) => {
                     const myStatus = rsvpStatus[selectedEvent.id];
-                    const count =
-                      selectedEvent.rsvp[status] +
-                      (myStatus === status ? 1 : 0);
                     return (
                       <button
                         type="button"
@@ -591,8 +637,7 @@ export default function CalendarPage() {
                           : status === "no"
                             ? "❌"
                             : "🤔"}{" "}
-                        {status.charAt(0).toUpperCase() + status.slice(1)} (
-                        {count})
+                        {status.charAt(0).toUpperCase() + status.slice(1)}
                       </button>
                     );
                   })}

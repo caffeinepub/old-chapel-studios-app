@@ -6,15 +6,13 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   CURRENT_USER,
-  DAYS,
-  INITIAL_AVAILABILITY,
   type Post,
   ROLE_COLORS,
   ROLE_LABELS,
-  ROOMS,
   formatRelativeTime,
   getUserById,
 } from "@/data/mockData";
+import { useActor } from "@/hooks/useActor";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import {
   Hash,
@@ -26,19 +24,42 @@ import {
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const REACTIONS = ["👍", "❤️", "🎵", "🔥"];
 
-const STATUS_COLORS = {
+const ROOMS = ["Room 1", "Room 2", "Room 3"];
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+type SlotStatus = "available" | "partial" | "booked" | "closed";
+type AvailabilityState = Record<string, SlotStatus[]>;
+
+const STATUS_COLORS: Record<SlotStatus, string> = {
   available: "#22C55E",
   booked: "#FF4500",
   partial: "#FFA500",
   closed: "oklch(0.28 0.015 45)",
 };
 
+function getDefaultAvailability(): AvailabilityState {
+  const state: AvailabilityState = {};
+  for (const room of ROOMS) {
+    state[room] = Array(7).fill("closed" as SlotStatus);
+  }
+  return state;
+}
+
+function slotToStatus(
+  slot: { available: boolean; hourEnd: bigint } | undefined,
+): SlotStatus {
+  if (!slot) return "closed";
+  if (!slot.available) return "booked";
+  return slot.hourEnd <= 12n ? "partial" : "available";
+}
+
 export default function HomePage() {
   const { isAdmin } = useIsAdmin();
+  const { actor } = useActor();
   const [posts, setPosts] = useState<Post[]>([]);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [newPost, setNewPost] = useState({
@@ -47,6 +68,39 @@ export default function HomePage() {
     hashtags: "",
     isAnnouncement: false,
   });
+  const [availability, setAvailability] = useState<AvailabilityState>(
+    getDefaultAvailability(),
+  );
+
+  // Load availability from backend
+  useEffect(() => {
+    if (!actor) return;
+    actor
+      .getRoomAvailability()
+      .then((raw) => {
+        const state = getDefaultAvailability();
+        for (const room of ROOMS) {
+          for (let d = 0; d < 7; d++) {
+            const slot = raw.find(
+              (s) => s.room === room && Number(s.dayOfWeek) === d,
+            );
+            state[room][d] = slotToStatus(slot);
+          }
+        }
+        setAvailability(state);
+      })
+      .catch(() => {
+        // silently ignore if not available
+      });
+  }, [actor]);
+
+  // Today's index: Mon=0 ... Sun=6
+  const todayIdx = (new Date().getDay() + 6) % 7;
+
+  // Find a room that's available today for the badge
+  const availableRoomToday = ROOMS.find(
+    (room) => availability[room][todayIdx] === "available",
+  );
 
   const handleReact = (postId: string, emoji: string) => {
     setPosts((prev) =>
@@ -119,16 +173,18 @@ export default function HomePage() {
               >
                 Available This Week
               </h3>
-              {/* Urgent badge */}
-              <span
-                className="text-xs px-2 py-0.5 rounded-full font-semibold animate-pulse"
-                style={{
-                  backgroundColor: "oklch(0.62 0.22 40 / 0.2)",
-                  color: "#FF4500",
-                }}
-              >
-                🟢 Room 1 free today!
-              </span>
+              {/* Urgent badge — only shown if a room is available today */}
+              {availableRoomToday && (
+                <span
+                  className="text-xs px-2 py-0.5 rounded-full font-semibold animate-pulse"
+                  style={{
+                    backgroundColor: "oklch(0.62 0.22 40 / 0.2)",
+                    color: "#FF4500",
+                  }}
+                >
+                  🟢 {availableRoomToday} free today!
+                </span>
+              )}
             </div>
 
             {/* Mini grid */}
@@ -155,17 +211,15 @@ export default function HomePage() {
                       <td className="text-foreground/80 py-1.5 pr-2 whitespace-nowrap text-[11px]">
                         {room}
                       </td>
-                      {INITIAL_AVAILABILITY[room].map((slot, i) => (
+                      {availability[room].map((status, i) => (
                         <td key={DAYS[i]} className="text-center py-1.5 px-1">
                           <span
                             className="inline-block w-2.5 h-2.5 rounded-full"
                             style={{
-                              backgroundColor: STATUS_COLORS[
-                                slot.status
-                              ] as string,
-                              opacity: slot.status === "closed" ? 0.4 : 1,
+                              backgroundColor: STATUS_COLORS[status] as string,
+                              opacity: status === "closed" ? 0.4 : 1,
                             }}
-                            title={slot.note || slot.status}
+                            title={status}
                           />
                         </td>
                       ))}
