@@ -118,6 +118,14 @@ export interface RoomSlot {
     available: boolean;
     hourEnd: bigint;
 }
+export interface FreeTimeSlot {
+    id: bigint;
+    room: string;
+    dayLabel: string;
+    timeStart: string;
+    timeEnd: string;
+    note: string;
+}
 export interface RSVP {
     name: string;
     inviteCode: string;
@@ -179,7 +187,10 @@ export interface backendInterface {
     _caffeineStorageRefillCashier(refillInformation: _CaffeineStorageRefillInformation | null): Promise<_CaffeineStorageRefillResult>;
     _caffeineStorageUpdateGatewayPrincipals(): Promise<void>;
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
+    addFreeTimeSlot(room: string, dayLabel: string, timeStart: string, timeEnd: string, note: string): Promise<bigint>;
     addReaction(messageId: bigint, emoji: string): Promise<void>;
+    getFreeTimeSlots(): Promise<Array<FreeTimeSlot>>;
+    removeFreeTimeSlot(id: bigint): Promise<void>;
     adminDeleteMessage(messageId: bigint): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     banUser(user: Principal): Promise<string>;
@@ -323,6 +334,48 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.addReaction(arg0, arg1);
+            return result;
+        }
+    }
+    async addFreeTimeSlot(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string): Promise<bigint> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addFreeTimeSlot(arg0, arg1, arg2, arg3, arg4);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addFreeTimeSlot(arg0, arg1, arg2, arg3, arg4);
+            return result;
+        }
+    }
+    async getFreeTimeSlots(): Promise<Array<FreeTimeSlot>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getFreeTimeSlots();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getFreeTimeSlots();
+            return result;
+        }
+    }
+    async removeFreeTimeSlot(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.removeFreeTimeSlot(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.removeFreeTimeSlot(arg0);
             return result;
         }
     }
