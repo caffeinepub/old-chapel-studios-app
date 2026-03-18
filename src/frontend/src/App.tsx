@@ -38,6 +38,15 @@ function clearCachedPrincipal() {
   } catch {}
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error("Request timed out")), ms),
+    ),
+  ]);
+}
+
 export default function App() {
   const [appState, setAppState] = useState<AppState>("splash");
   const [splashDone, setSplashDone] = useState(false);
@@ -56,7 +65,6 @@ export default function App() {
       const principal = identity.getPrincipal().toString();
       const cached = getCachedPrincipal();
       if (cached === principal) {
-        // Known registered user — go straight to app, verify in background
         bgVerifiedRef.current = false;
         setConnectError(null);
         setAppState("app");
@@ -88,7 +96,7 @@ export default function App() {
         }
       })
       .catch(() => {
-        // Backend unreachable — stay in app optimistically, will fail on next action
+        // Backend unreachable — stay in app optimistically
       });
   }, [appState, actor, actorFetching, identity]);
 
@@ -101,12 +109,13 @@ export default function App() {
     }
   }, [identity, appState]);
 
-  // Hard timeout: if stuck on checking for >15s, bail out silently
+  // Hard timeout: if stuck on checking for >10s, bail to onboarding
   useEffect(() => {
     if (appState === "checking") {
       checkingTimeoutRef.current = setTimeout(() => {
+        setConnectError("Connection timed out. Please try again.");
         setAppState("onboarding");
-      }, 15000);
+      }, 10000);
     } else {
       if (checkingTimeoutRef.current) {
         clearTimeout(checkingTimeoutRef.current);
@@ -135,10 +144,11 @@ export default function App() {
 
     const checkAccess = async () => {
       try {
-        const registered = await actor.isCallerRegistered();
+        const registered = await withTimeout(actor.isCallerRegistered(), 8000);
         if (registered) {
           const principal = identity.getPrincipal().toString();
           setCachedPrincipal(principal);
+          setConnectError(null);
           setAppState("app");
         } else {
           clearCachedPrincipal();
@@ -203,9 +213,16 @@ export default function App() {
             className="min-h-screen flex items-center justify-center"
             style={{ backgroundColor: "oklch(0.13 0.008 50)" }}
           >
-            <div className="flex flex-col items-center gap-3">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-[72px] h-[72px] rounded-full bg-white flex items-center justify-center overflow-hidden shadow-lg mb-2">
+                <img
+                  src="/assets/uploads/Logo-1.png"
+                  alt="Old Chapel Studios"
+                  className="w-full h-full object-contain"
+                />
+              </div>
               <div
-                className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin"
+                className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
                 style={{
                   borderColor: "#FF4500",
                   borderTopColor: "transparent",
