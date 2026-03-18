@@ -81,6 +81,14 @@ export const RoomSlot = IDL.Record({
   'available' : IDL.Bool,
   'hourEnd' : IDL.Nat,
 });
+export const FreeTimeSlot = IDL.Record({
+  'id' : IDL.Nat,
+  'room' : IDL.Text,
+  'dayLabel' : IDL.Text,
+  'timeStart' : IDL.Text,
+  'timeEnd' : IDL.Text,
+  'note' : IDL.Text,
+});
 export const ApprovalStatus = IDL.Variant({
   'pending' : IDL.Null,
   'approved' : IDL.Null,
@@ -119,6 +127,7 @@ export const idlService = IDL.Service({
     ),
   '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'addFreeTimeSlot' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text], [IDL.Nat], []),
   'addReaction' : IDL.Func([IDL.Nat, IDL.Text], [], []),
   'adminDeleteMessage' : IDL.Func([IDL.Nat], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
@@ -140,6 +149,7 @@ export const idlService = IDL.Service({
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getEvents' : IDL.Func([], [IDL.Vec(StudioEvent)], ['query']),
+  'getFreeTimeSlots' : IDL.Func([], [IDL.Vec(FreeTimeSlot)], ['query']),
   'getInviteCodes' : IDL.Func([], [IDL.Vec(InviteCode)], ['query']),
   'getMessages' : IDL.Func([IDL.Text], [IDL.Vec(Message)], ['query']),
   'getReactions' : IDL.Func(
@@ -159,6 +169,7 @@ export const idlService = IDL.Service({
   'listApprovals' : IDL.Func([], [IDL.Vec(UserApprovalInfo)], ['query']),
   'postMessage' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat], []),
   'register' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [], []),
+  'removeFreeTimeSlot' : IDL.Func([IDL.Nat], [], []),
   'removeUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
   'requestApproval' : IDL.Func([], [], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
@@ -244,6 +255,14 @@ export const idlFactory = ({ IDL }) => {
     'available' : IDL.Bool,
     'hourEnd' : IDL.Nat,
   });
+  const FreeTimeSlot = IDL.Record({
+    'id' : IDL.Nat,
+    'room' : IDL.Text,
+    'dayLabel' : IDL.Text,
+    'timeStart' : IDL.Text,
+    'timeEnd' : IDL.Text,
+    'note' : IDL.Text,
+  });
   const ApprovalStatus = IDL.Variant({
     'pending' : IDL.Null,
     'approved' : IDL.Null,
@@ -282,6 +301,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'addFreeTimeSlot' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text], [IDL.Nat], []),
     'addReaction' : IDL.Func([IDL.Nat, IDL.Text], [], []),
     'adminDeleteMessage' : IDL.Func([IDL.Nat], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
@@ -303,6 +323,7 @@ export const idlFactory = ({ IDL }) => {
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getEvents' : IDL.Func([], [IDL.Vec(StudioEvent)], ['query']),
+    'getFreeTimeSlots' : IDL.Func([], [IDL.Vec(FreeTimeSlot)], ['query']),
     'getInviteCodes' : IDL.Func([], [IDL.Vec(InviteCode)], ['query']),
     'getMessages' : IDL.Func([IDL.Text], [IDL.Vec(Message)], ['query']),
     'getReactions' : IDL.Func(
@@ -322,6 +343,7 @@ export const idlFactory = ({ IDL }) => {
     'listApprovals' : IDL.Func([], [IDL.Vec(UserApprovalInfo)], ['query']),
     'postMessage' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat], []),
     'register' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [], []),
+    'removeFreeTimeSlot' : IDL.Func([IDL.Nat], [], []),
     'removeUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'requestApproval' : IDL.Func([], [], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
