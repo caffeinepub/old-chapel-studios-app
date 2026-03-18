@@ -157,7 +157,15 @@ export default function App() {
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        setConnectError(msg);
+        const isStoppedCanister =
+          msg.includes("IC0508") ||
+          msg.includes("is stopped") ||
+          msg.includes("CallContextManager");
+        setConnectError(
+          isStoppedCanister
+            ? "Server temporarily unavailable. Please try again in a moment."
+            : msg,
+        );
         setAppState("onboarding");
       }
     };

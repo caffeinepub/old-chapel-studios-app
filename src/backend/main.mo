@@ -12,13 +12,12 @@ import MixinAuthorization "authorization/MixinAuthorization";
 import MixinStorage "blob-storage/Mixin";
 import InviteLinksModule "invite-links/invite-links-module";
 import UserApproval "user-approval/approval";
+import Migration "migration";
 
+(with migration = Migration.run)
 actor {
-  // Hardcoded admin principal
+  // Constant for admin principal
   let ADMIN_PRINCIPAL : Text = "ulyt5-slv4a-xrfbx-seije-74i6r-4nkkh-ydqng-hgdb2-r3tlc-tkvp4-hae";
-  func isHardcodedAdmin(caller : Principal) : Bool {
-    caller.toText() == ADMIN_PRINCIPAL
-  };
 
   // Keep component state vars for stable variable compatibility
   let accessControlState = AccessControl.initState();
@@ -55,9 +54,27 @@ actor {
 
   let userProfiles = Map.empty<Principal, UserProfile>();
 
+  // Helper function to check if user is registered and not banned
+  func isUserActiveAndRegistered(caller : Principal) : Bool {
+    switch (userProfiles.get(caller)) {
+      case (null) { false };
+      case (?profile) {
+        switch (profile.status) {
+          case (#banned) { false };
+          case (_) { true };
+        };
+      };
+    };
+  };
+
   // Anyone approved is considered registered
   public query ({ caller }) func isCallerRegistered() : async Bool {
     AccessControl.hasPermission(accessControlState, caller, #user) or AccessControl.hasPermission(accessControlState, caller, #admin);
+  };
+
+  // Check if caller is the hardcoded admin
+  public query ({ caller }) func checkIfCallerIsAdmin() : async Bool {
+    caller.toText() == ADMIN_PRINCIPAL;
   };
 
   // Open approval — just checks if registered and not banned
@@ -126,15 +143,19 @@ actor {
 
   // Admin User Management
   public query ({ caller }) func getAllUsers() : async [((Principal, UserProfile))] {
-    if (not isHardcodedAdmin(caller)) {
+    if (caller.toText() != ADMIN_PRINCIPAL) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     userProfiles.toArray();
   };
 
   public shared ({ caller }) func removeUser(user : Principal) : async Text {
-    if (not isHardcodedAdmin(caller)) {
+    if (caller.toText() != ADMIN_PRINCIPAL) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+    // Admins cannot be deleted
+    if (user.toText() == ADMIN_PRINCIPAL) {
+      Runtime.trap("ERROR: Cannot remove admin users");
     };
     switch (userProfiles.get(user)) {
       case (null) {
@@ -148,7 +169,7 @@ actor {
   };
 
   public shared ({ caller }) func banUser(user : Principal) : async Text {
-    if (not isHardcodedAdmin(caller)) {
+    if (caller.toText() != ADMIN_PRINCIPAL) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     switch (userProfiles.get(user)) {
@@ -173,7 +194,7 @@ actor {
   };
 
   public shared ({ caller }) func unbanUser(user : Principal) : async Text {
-    if (not isHardcodedAdmin(caller)) {
+    if (caller.toText() != ADMIN_PRINCIPAL) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     switch (userProfiles.get(user)) {
@@ -212,7 +233,12 @@ actor {
   let channelMessages = Map.empty<Text, [Nat]>();
 
   public shared ({ caller }) func postMessage(channelId : Text, content : Text) : async Nat {
-    if (not AccessControl.hasPermission(accessControlState, caller, #user)) { Runtime.trap("Not registered") };
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Not registered");
+    };
+    if (not isUserActiveAndRegistered(caller)) {
+      Runtime.trap("Unauthorized: User is banned or not registered");
+    };
     switch (userProfiles.get(caller)) {
       case (null) { Runtime.trap("Not registered") };
       case (?profile) {
@@ -254,12 +280,17 @@ actor {
   };
 
   public shared ({ caller }) func deleteMessage(messageId : Nat) : async () {
-    if (not AccessControl.hasPermission(accessControlState, caller, #user)) { Runtime.trap("Not registered") };
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Not registered");
+    };
+    if (not isUserActiveAndRegistered(caller)) {
+      Runtime.trap("Unauthorized: User is banned or not registered");
+    };
     switch (messages.get(messageId)) {
       case (null) { Runtime.trap("Message not found") };
       case (?message) {
         if (message.authorPrincipal != caller) {
-          Runtime.trap("Only the author can delete this message");
+          Runtime.trap("Unauthorized: Only the author can delete this message");
         };
         messages.remove(messageId);
       };
@@ -268,7 +299,7 @@ actor {
 
   // Admin-only: delete any message for content moderation
   public shared ({ caller }) func adminDeleteMessage(messageId : Nat) : async () {
-    if (not isHardcodedAdmin(caller)) {
+    if (caller.toText() != ADMIN_PRINCIPAL) {
       Runtime.trap("Unauthorized: Admin access required");
     };
     switch (messages.get(messageId)) {
@@ -281,7 +312,12 @@ actor {
   let messageReactions = Map.empty<Nat, Map.Map<Text, [Principal]>>();
 
   public shared ({ caller }) func addReaction(messageId : Nat, emoji : Text) : async () {
-    if (not AccessControl.hasPermission(accessControlState, caller, #user)) { Runtime.trap("Not registered") };
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Not registered");
+    };
+    if (not isUserActiveAndRegistered(caller)) {
+      Runtime.trap("Unauthorized: User is banned or not registered");
+    };
     switch (userProfiles.get(caller)) {
       case (null) { Runtime.trap("Not registered") };
       case (?_) {
@@ -340,7 +376,12 @@ actor {
     endTime : Int,
     room : ?Text,
   ) : async Nat {
-    if (not AccessControl.hasPermission(accessControlState, caller, #user)) { Runtime.trap("Not registered") };
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Not registered");
+    };
+    if (not isUserActiveAndRegistered(caller)) {
+      Runtime.trap("Unauthorized: User is banned or not registered");
+    };
     switch (userProfiles.get(caller)) {
       case (null) { Runtime.trap("Not registered") };
       case (?_) {
@@ -366,7 +407,7 @@ actor {
   };
 
   public shared ({ caller }) func deleteEvent(id : Nat) : async () {
-    if (not isHardcodedAdmin(caller)) {
+    if (caller.toText() != ADMIN_PRINCIPAL) {
       Runtime.trap("Unauthorized: Only admins can delete events");
     };
     switch (events.get(id)) {
@@ -389,7 +430,7 @@ actor {
   var roomSlots : [RoomSlot] = [];
 
   public shared ({ caller }) func setRoomAvailability(slots : [RoomSlot]) : async () {
-    if (not isHardcodedAdmin(caller)) {
+    if (caller.toText() != ADMIN_PRINCIPAL) {
       Runtime.trap("Unauthorized: Only admins can set room availability");
     };
     roomSlots := slots;
@@ -419,7 +460,7 @@ actor {
     timeEnd : Text,
     note : Text,
   ) : async Nat {
-    if (not isHardcodedAdmin(caller)) {
+    if (caller.toText() != ADMIN_PRINCIPAL) {
       Runtime.trap("Unauthorized: Only admins can add time slots");
     };
     let slotId = nextFreeSlotId;
@@ -437,7 +478,7 @@ actor {
   };
 
   public shared ({ caller }) func removeFreeTimeSlot(id : Nat) : async () {
-    if (not isHardcodedAdmin(caller)) {
+    if (caller.toText() != ADMIN_PRINCIPAL) {
       Runtime.trap("Unauthorized: Only admins can remove time slots");
     };
     freeTimeSlots.remove(id);
@@ -449,14 +490,14 @@ actor {
 
   // ========== New Functions for Invite Links and User Approval ==========
   public query ({ caller }) func getAllRSVPs() : async [InviteLinksModule.RSVP] {
-    if (not isHardcodedAdmin(caller)) {
+    if (caller.toText() != ADMIN_PRINCIPAL) {
       Runtime.trap("Unauthorized: Only admins can view RSVPs");
     };
     InviteLinksModule.getAllRSVPs(inviteState);
   };
 
   public query ({ caller }) func getInviteCodes() : async [InviteLinksModule.InviteCode] {
-    if (not isHardcodedAdmin(caller)) {
+    if (caller.toText() != ADMIN_PRINCIPAL) {
       Runtime.trap("Unauthorized: Only admins can view invite codes");
     };
     InviteLinksModule.getInviteCodes(inviteState);
@@ -471,21 +512,21 @@ actor {
   };
 
   public shared ({ caller }) func setApproval(user : Principal, status : UserApproval.ApprovalStatus) : async () {
-    if (not isHardcodedAdmin(caller)) {
+    if (caller.toText() != ADMIN_PRINCIPAL) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     UserApproval.setApproval(approvalState, user, status);
   };
 
   public query ({ caller }) func listApprovals() : async [UserApproval.UserApprovalInfo] {
-    if (not isHardcodedAdmin(caller)) {
+    if (caller.toText() != ADMIN_PRINCIPAL) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     UserApproval.listApprovals(approvalState);
   };
 
   public shared ({ caller }) func generateInviteCode() : async Text {
-    if (not isHardcodedAdmin(caller)) {
+    if (caller.toText() != ADMIN_PRINCIPAL) {
       Runtime.trap("Unauthorized: Only admins can generate invite codes");
     };
     let code = InviteLinksModule.generateUUID(Blob.empty());

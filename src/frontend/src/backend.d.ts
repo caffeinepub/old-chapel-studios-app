@@ -92,6 +92,7 @@ export interface backendInterface {
     adminDeleteMessage(messageId: bigint): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     banUser(user: Principal): Promise<string>;
+    checkIfCallerIsAdmin(): Promise<boolean>;
     createEvent(title: string, description: string, startTime: bigint, endTime: bigint, room: string | null): Promise<bigint>;
     deleteEvent(id: bigint): Promise<void>;
     deleteMessage(messageId: bigint): Promise<void>;

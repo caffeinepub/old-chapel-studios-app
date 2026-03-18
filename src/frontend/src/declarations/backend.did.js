@@ -136,6 +136,7 @@ export const idlService = IDL.Service({
   'adminDeleteMessage' : IDL.Func([IDL.Nat], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'banUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
+  'checkIfCallerIsAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'createEvent' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Int, IDL.Int, IDL.Opt(IDL.Text)],
       [IDL.Nat],
@@ -314,6 +315,7 @@ export const idlFactory = ({ IDL }) => {
     'adminDeleteMessage' : IDL.Func([IDL.Nat], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'banUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
+    'checkIfCallerIsAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'createEvent' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Int, IDL.Int, IDL.Opt(IDL.Text)],
         [IDL.Nat],

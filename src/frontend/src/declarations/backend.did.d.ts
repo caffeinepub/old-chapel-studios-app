@@ -117,6 +117,7 @@ export interface _SERVICE {
   'adminDeleteMessage' : ActorMethod<[bigint], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'banUser' : ActorMethod<[Principal], string>,
+  'checkIfCallerIsAdmin' : ActorMethod<[], boolean>,
   'createEvent' : ActorMethod<
     [string, string, bigint, bigint, [] | [string]],
     bigint

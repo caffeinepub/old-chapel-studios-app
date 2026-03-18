@@ -192,6 +192,7 @@ export interface backendInterface {
     adminDeleteMessage(messageId: bigint): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     banUser(user: Principal): Promise<string>;
+    checkIfCallerIsAdmin(): Promise<boolean>;
     createEvent(title: string, description: string, startTime: bigint, endTime: bigint, room: string | null): Promise<bigint>;
     deleteEvent(id: bigint): Promise<void>;
     deleteMessage(messageId: bigint): Promise<void>;
@@ -390,6 +391,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.banUser(arg0);
+            return result;
+        }
+    }
+    async checkIfCallerIsAdmin(): Promise<boolean> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.checkIfCallerIsAdmin();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.checkIfCallerIsAdmin();
             return result;
         }
     }
