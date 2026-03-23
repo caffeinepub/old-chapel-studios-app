@@ -1,5 +1,10 @@
-import { type HttpAgent, isV3ResponseBody } from "@icp-sdk/core/agent";
+import {
+  Certificate,
+  type HttpAgent,
+  isV3ResponseBody,
+} from "@icp-sdk/core/agent";
 import { IDL } from "@icp-sdk/core/candid";
+import { Principal } from "@icp-sdk/core/principal";
 
 type Headers = Record<string, string>;
 
@@ -487,12 +492,75 @@ export class StorageClient {
       methodName: "_caffeineStorageCreateCertificate",
       arg: args,
     });
-    const respone = result.response.body;
-    if (isV3ResponseBody(respone)) {
-      console.log("Certificate:", respone.certificate);
-      return respone.certificate;
+    const responseBody = result.response.body;
+
+    // v3 response: certificate is included directly in the response
+    if (isV3ResponseBody(responseBody)) {
+      return responseBody.certificate;
     }
-    throw new Error("Expected v3 response body");
+
+    // v2 response: poll readState until the request has been replied
+    return await this.pollForCertificateV2(result.requestId);
+  }
+
+  private async pollForCertificateV2(
+    requestId: Uint8Array,
+  ): Promise<Uint8Array> {
+    const MAX_POLLS = 30;
+    const POLL_INTERVAL_MS = 1500;
+    const enc = new TextEncoder();
+    const path = [enc.encode("request_status"), requestId];
+    const canisterPrincipal = Principal.fromText(this.backendCanisterId);
+
+    for (let i = 0; i < MAX_POLLS; i++) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      try {
+        const stateResult = await this.agent.readState(canisterPrincipal, {
+          paths: [path],
+        });
+        const certBytes = stateResult.certificate;
+        if (!certBytes || certBytes.length === 0) continue;
+
+        // Check status in the certificate tree before returning
+        const cert = await Certificate.create({
+          certificate: certBytes,
+          rootKey: this.agent.rootKey!,
+          canisterId: canisterPrincipal,
+          agent: this.agent,
+        });
+        const statusLookup = cert.lookup_path([...path, enc.encode("status")]);
+        // lookup_path returns LookupResult with status field
+        let statusValue: string | null = null;
+        if (
+          statusLookup != null &&
+          typeof statusLookup === "object" &&
+          "status" in statusLookup &&
+          statusLookup.status === "Found" &&
+          "value" in statusLookup
+        ) {
+          statusValue = new TextDecoder().decode(statusLookup.value);
+        }
+
+        if (statusValue === "replied") {
+          return certBytes;
+        }
+        if (statusValue === "rejected" || statusValue === "done") {
+          throw new Error(
+            `Certificate request failed with status: ${statusValue}`,
+          );
+        }
+        // processing / received / unknown => continue polling
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        // Only rethrow terminal errors
+        if (msg.includes("failed with status") || msg.includes("rejected")) {
+          throw e;
+        }
+        // Otherwise keep polling
+      }
+    }
+
+    throw new Error("Timed out waiting for upload certificate from backend");
   }
 
   public async putFile(
