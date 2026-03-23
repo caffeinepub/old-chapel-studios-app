@@ -699,6 +699,73 @@ actor {
     freeTimeSlots.values().toArray();
   };
 
+  // ====== File Records ======
+  public type FileRecord = {
+    id : Nat;
+    name : Text;
+    fileType : Text;
+    size : Text;
+    blobHash : Text;
+    downloadUrl : Text;
+    folderId : Text;
+    uploadDate : Text;
+    uploaderPrincipal : Principal;
+  };
+
+  var nextFileRecordId : Nat = 0;
+  var fileRecords = Map.empty<Nat, FileRecord>();
+
+  public shared ({ caller }) func saveFileRecord(
+    name : Text,
+    fileType : Text,
+    size : Text,
+    blobHash : Text,
+    downloadUrl : Text,
+    folderId : Text,
+    uploadDate : Text,
+  ) : async Nat {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Anonymous callers cannot save file records");
+    };
+    if (not isUserActiveAndRegistered(caller)) {
+      Runtime.trap("Unauthorized: User is banned or not registered");
+    };
+    let recordId = nextFileRecordId;
+    nextFileRecordId += 1;
+    let record : FileRecord = {
+      id = recordId;
+      name = name;
+      fileType = fileType;
+      size = size;
+      blobHash = blobHash;
+      downloadUrl = downloadUrl;
+      folderId = folderId;
+      uploadDate = uploadDate;
+      uploaderPrincipal = caller;
+    };
+    fileRecords.add(recordId, record);
+    recordId;
+  };
+
+  public query func getFileRecords() : async [FileRecord] {
+    fileRecords.values().toArray();
+  };
+
+  public shared ({ caller }) func deleteFileRecord(id : Nat) : async () {
+    if (caller.isAnonymous()) {
+      Runtime.trap("Anonymous callers cannot delete file records");
+    };
+    switch (fileRecords.get(id)) {
+      case (null) { Runtime.trap("File record not found") };
+      case (?record) {
+        if (record.uploaderPrincipal != caller and caller.toText() != ADMIN_PRINCIPAL) {
+          Runtime.trap("Unauthorized: Only the uploader or admin can delete this file");
+        };
+        fileRecords.remove(id);
+      };
+    };
+  };
+
   // ========== New Functions for Invite Links and User Approval ==========
   public query ({ caller }) func getAllRSVPs() : async [InviteLinksModule.RSVP] {
     if (caller.toText() != ADMIN_PRINCIPAL) {
@@ -745,4 +812,3 @@ actor {
     code;
   };
 };
-

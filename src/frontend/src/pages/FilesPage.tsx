@@ -13,6 +13,7 @@ import {
   INITIAL_FILE_FOLDERS,
   getUserById,
 } from "@/data/mockData";
+import { useActor } from "@/hooks/useActor";
 import { useInternetIdentity } from "@/hooks/useInternetIdentity";
 import { StorageClient } from "@/utils/StorageClient";
 import { HttpAgent } from "@icp-sdk/core/agent";
@@ -32,7 +33,7 @@ import {
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 type FileType = "audio" | "image" | "pdf" | "doc" | "video";
@@ -46,6 +47,7 @@ interface UploadedFile {
   uploadDate: string;
   blobHash?: string;
   downloadUrl?: string;
+  backendId?: bigint;
 }
 
 const FILE_ICONS: Record<
@@ -148,9 +150,10 @@ async function handleDownload(
 
 export default function FilesPage() {
   const { identity } = useInternetIdentity();
+  const { actor, isFetching: actorFetching } = useActor();
   const [folders, setFolders] = useState<
     (FileFolder & { uploadedFiles?: UploadedFile[] })[]
-  >(INITIAL_FILE_FOLDERS.map((f) => ({ ...f, uploadedFiles: [] })));
+  >(INITIAL_FILE_FOLDERS.map((f) => ({ ...f, files: [], uploadedFiles: [] })));
   const [activeFolder, setActiveFolder] = useState<
     (FileFolder & { uploadedFiles?: UploadedFile[] }) | null
   >(null);
@@ -161,7 +164,60 @@ export default function FilesPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [previewFile, setPreviewFile] = useState<UploadedFile | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [loadingFiles, setLoadingFiles] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load file records from backend on mount
+  useEffect(() => {
+    if (!actor || actorFetching) return;
+
+    const load = async () => {
+      setLoadingFiles(true);
+      try {
+        const records = await (actor as any).getFileRecords();
+        setFolders((prev) => {
+          const updated = prev.map((f) => ({
+            ...f,
+            uploadedFiles: [] as UploadedFile[],
+          }));
+          for (const record of records) {
+            const fileType = (
+              record.fileType as string
+            ).toLowerCase() as FileType;
+            const mapped: UploadedFile = {
+              id: String(record.id),
+              name: record.name as string,
+              type: ["audio", "image", "pdf", "doc", "video"].includes(fileType)
+                ? fileType
+                : "doc",
+              size: record.size as string,
+              uploaderId: record.uploaderPrincipal?.toString() ?? "unknown",
+              uploadDate: record.uploadDate as string,
+              blobHash: record.blobHash as string,
+              downloadUrl: record.downloadUrl as string,
+              backendId: record.id as bigint,
+            };
+            const folderIdx = updated.findIndex(
+              (f) => f.id === record.folderId,
+            );
+            const target = folderIdx >= 0 ? folderIdx : 0;
+            updated[target].uploadedFiles!.push(mapped);
+          }
+          // update fileCount to match uploaded files
+          return updated.map((f) => ({
+            ...f,
+            fileCount: f.uploadedFiles?.length ?? 0,
+          }));
+        });
+      } catch {
+        // silently show empty list if backend fails
+      } finally {
+        setLoadingFiles(false);
+      }
+    };
+
+    load();
+  }, [actor, actorFetching]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -198,19 +254,43 @@ export default function FilesPage() {
 
       const downloadUrl = await storageClient.getDirectURL(hash);
 
+      const uploadDate = new Date().toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+
+      const fileType = detectFileType(selectedFile);
+      const sizeStr = formatFileSize(selectedFile.size);
+
+      // Save to backend
+      let backendId: bigint | undefined;
+      if (actor) {
+        try {
+          backendId = await (actor as any).saveFileRecord(
+            selectedFile.name,
+            fileType,
+            sizeStr,
+            hash,
+            downloadUrl,
+            uploadFolderId,
+            uploadDate,
+          );
+        } catch {
+          // continue even if backend save fails
+        }
+      }
+
       const newFile: UploadedFile = {
-        id: `file-${Date.now()}`,
+        id: backendId !== undefined ? String(backendId) : `file-${Date.now()}`,
         name: selectedFile.name,
-        type: detectFileType(selectedFile),
-        size: formatFileSize(selectedFile.size),
+        type: fileType,
+        size: sizeStr,
         uploaderId: identity?.getPrincipal().toText() ?? "unknown",
-        uploadDate: new Date().toLocaleDateString("en-GB", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        }),
+        uploadDate,
         blobHash: hash,
         downloadUrl,
+        backendId,
       };
 
       setFolders((prev) =>
@@ -251,7 +331,26 @@ export default function FilesPage() {
     }
   };
 
-  const handleDeleteFile = (fileId: string) => {
+  const handleDeleteFile = async (fileId: string) => {
+    // Find the file to get its backendId
+    let backendId: bigint | undefined;
+    for (const folder of folders) {
+      const found = folder.uploadedFiles?.find((f) => f.id === fileId);
+      if (found) {
+        backendId = found.backendId;
+        break;
+      }
+    }
+
+    // Delete from backend
+    if (backendId !== undefined && actor) {
+      try {
+        await (actor as any).deleteFileRecord(backendId);
+      } catch {
+        // continue even if backend delete fails
+      }
+    }
+
     setFolders((prev) =>
       prev.map((f) => {
         if (f.id !== activeFolder?.id) return f;
@@ -498,7 +597,17 @@ export default function FilesPage() {
 
         <main className="flex-1 pb-24 overflow-y-auto">
           <div className="max-w-2xl mx-auto px-4 pt-4 space-y-2">
-            {allFiles.length === 0 ? (
+            {loadingFiles ? (
+              <div
+                className="flex items-center justify-center py-12"
+                data-ocid="files.loading_state"
+              >
+                <Loader2
+                  className="w-6 h-6 animate-spin"
+                  style={{ color: "#FF4500" }}
+                />
+              </div>
+            ) : allFiles.length === 0 ? (
               <div
                 className="text-center py-12 text-muted-foreground"
                 data-ocid="files.empty_state"
@@ -839,37 +948,49 @@ export default function FilesPage() {
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {folders.map((folder, idx) => (
-              <motion.button
-                key={folder.id}
-                onClick={() => setActiveFolder(folder)}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: idx * 0.05 }}
-                className="flex flex-col items-center gap-3 p-5 rounded-xl border hover:brightness-110 transition-all text-left"
-                style={{
-                  backgroundColor: "oklch(0.17 0.01 45)",
-                  borderColor: "oklch(0.28 0.015 45)",
-                }}
-                data-ocid={`files.item.${idx + 1}`}
-              >
-                <span className="text-4xl">{folder.emoji}</span>
-                <div className="text-center">
-                  <p
-                    className="font-semibold text-sm"
-                    style={{ fontFamily: "'Outfit', sans-serif" }}
-                  >
-                    {folder.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {folder.fileCount + (folder.uploadedFiles?.length ?? 0)}{" "}
-                    files
-                  </p>
-                </div>
-              </motion.button>
-            ))}
-          </div>
+          {loadingFiles ? (
+            <div
+              className="flex items-center justify-center py-16"
+              data-ocid="files.loading_state"
+            >
+              <Loader2
+                className="w-6 h-6 animate-spin"
+                style={{ color: "#FF4500" }}
+              />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {folders.map((folder, idx) => (
+                <motion.button
+                  key={folder.id}
+                  onClick={() => setActiveFolder(folder)}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: idx * 0.05 }}
+                  className="flex flex-col items-center gap-3 p-5 rounded-xl border hover:brightness-110 transition-all text-left"
+                  style={{
+                    backgroundColor: "oklch(0.17 0.01 45)",
+                    borderColor: "oklch(0.28 0.015 45)",
+                  }}
+                  data-ocid={`files.item.${idx + 1}`}
+                >
+                  <span className="text-4xl">{folder.emoji}</span>
+                  <div className="text-center">
+                    <p
+                      className="font-semibold text-sm"
+                      style={{ fontFamily: "'Outfit', sans-serif" }}
+                    >
+                      {folder.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {folder.fileCount + (folder.uploadedFiles?.length ?? 0)}{" "}
+                      files
+                    </p>
+                  </div>
+                </motion.button>
+              ))}
+            </div>
+          )}
 
           <div className="mt-6">
             <h3 className="font-bold text-sm text-muted-foreground uppercase tracking-wider mb-3">

@@ -1,20 +1,26 @@
 # Old Chapel Studios App
 
 ## Current State
-The app is fully featured with chat, rooms, availability, events, user management, and admin controls. The backend canister (x5aw4-ryaaa-aaaag-axmna-cai) keeps running out of cycles and stopping. When this happens, any call to `isCallerRegistered` fails with a rejection error that currently surfaces on the login page without user interaction.
+Files are uploaded to blob storage and tracked only in React component state (`useState`). When the user logs out or refreshes, uploaded files disappear because no file metadata is persisted to the backend.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Nothing new
+- Backend `FileRecord` type storing: id, name, fileType, size, blobHash, downloadUrl, folderId, uploadDate, uploaderPrincipal
+- Backend method `saveFileRecord(name, fileType, size, blobHash, downloadUrl, folderId)` — saves metadata for a file
+- Backend method `getFileRecords()` — returns all file records visible to the caller (their own files)
+- Backend method `deleteFileRecord(id)` — deletes a file record by ID (only the uploader or admin can delete)
+- Frontend: on successful upload, call `saveFileRecord` to persist metadata
+- Frontend: on page load, call `getFileRecords()` and populate folders with persisted file data
+- Frontend: on file delete, call `deleteFileRecord(id)` to remove from backend
 
 ### Modify
-- Full backend rebuild to get a fresh canister with new cycles
-- Improve error handling in App.tsx so that a stopped canister error on the login/checking screen shows a user-friendly message ("Server temporarily unavailable — please try again shortly") rather than the raw rejection error
+- `FilesPage.tsx`: replace local-state-only file management with backend-persisted file records; load files from backend on mount; save to backend after upload; delete from backend when deleted
 
 ### Remove
-- Old stopped canister
+- Nothing removed
 
 ## Implementation Plan
-1. Regenerate Motoko backend (preserves all existing features)
-2. Update App.tsx to detect the IC0508 canister-stopped error specifically and show a gentle, user-friendly message instead of the raw technical error
+1. Add `FileRecord` type and three methods (`saveFileRecord`, `getFileRecords`, `deleteFileRecord`) to `src/backend/main.mo`
+2. Regenerate backend bindings
+3. Update `FilesPage.tsx` to load file records from backend on mount, save on upload, delete on backend delete

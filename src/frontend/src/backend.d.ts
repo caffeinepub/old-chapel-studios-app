@@ -80,6 +80,17 @@ export interface UserProfile {
     avatarUrl?: string;
     phone?: string;
 }
+export interface FileRecord {
+    id: bigint;
+    name: string;
+    fileType: string;
+    size: string;
+    blobHash: string;
+    downloadUrl: string;
+    folderId: string;
+    uploadDate: string;
+    uploaderPrincipal: Principal;
+}
 export enum AppUserRole {
     client = "client",
     musician = "musician",
@@ -111,6 +122,7 @@ export interface backendInterface {
     createEvent(title: string, description: string, startTime: bigint, endTime: bigint, room: string | null): Promise<bigint>;
     createPoll(title: string, options: Array<string>, multiSelect: boolean, anonymous: boolean): Promise<bigint>;
     deleteEvent(id: bigint): Promise<void>;
+    deleteFileRecord(id: bigint): Promise<void>;
     deleteMessage(messageId: bigint): Promise<void>;
     deletePoll(pollId: bigint): Promise<void>;
     generateInviteCode(): Promise<string>;
@@ -120,6 +132,7 @@ export interface backendInterface {
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getEvents(): Promise<Array<StudioEvent>>;
+    getFileRecords(): Promise<Array<FileRecord>>;
     getFreeTimeSlots(): Promise<Array<FreeTimeSlot>>;
     getInviteCodes(): Promise<Array<InviteCode>>;
     getMessages(channelId: string): Promise<Array<Message>>;
@@ -144,6 +157,7 @@ export interface backendInterface {
     removeUser(user: Principal): Promise<string>;
     requestApproval(): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    saveFileRecord(name: string, fileType: string, size: string, blobHash: string, downloadUrl: string, folderId: string, uploadDate: string): Promise<bigint>;
     setApproval(user: Principal, status: ApprovalStatus): Promise<void>;
     setRoomAvailability(slots: Array<RoomSlot>): Promise<void>;
     submitRSVP(name: string, attending: boolean, inviteCode: string): Promise<void>;
