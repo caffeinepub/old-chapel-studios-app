@@ -52,7 +52,7 @@ actor {
     phone : ?Text;
   };
 
-  let userProfiles = Map.empty<Principal, UserProfile>();
+  var userProfiles = Map.empty<Principal, UserProfile>();
 
   // Helper function to check if user is registered and not banned
   func isUserActiveAndRegistered(caller : Principal) : Bool {
@@ -218,6 +218,217 @@ actor {
     };
   };
 
+  // ====== Polls ======
+  public type PollOption = {
+    text : Text;
+    voteCount : Nat;
+  };
+
+  public type Poll = {
+    id : Nat;
+    creator : Principal;
+    title : Text;
+    options : [PollOption];
+    multiSelect : Bool;
+    anonymous : Bool;
+    createdAt : Time.Time;
+    isActive : Bool;
+    votes : [Principal];
+  };
+
+  var nextPollId : Nat = 0;
+  var polls = Map.empty<Nat, Poll>();
+  var userVotes = Map.empty<Nat, Map.Map<Principal, [Nat]>>();
+
+  public shared ({ caller }) func createPoll(
+    title : Text,
+    options : [Text],
+    multiSelect : Bool,
+    anonymous : Bool,
+  ) : async Nat {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can create polls");
+    };
+    if (not isUserActiveAndRegistered(caller)) {
+      Runtime.trap("Unauthorized: User is banned or not registered");
+    };
+    switch (userProfiles.get(caller)) {
+      case (null) { Runtime.trap("Not registered") };
+      case (?_) {
+        if (options.size() < 2) {
+          Runtime.trap("A poll must have at least two options");
+        };
+        let pollId = nextPollId;
+        nextPollId += 1;
+        let pollOptions = options.map(
+          func(text) {
+            { text; voteCount = 0 };
+          }
+        );
+        let poll : Poll = {
+          id = pollId;
+          creator = caller;
+          title = title;
+          options = pollOptions;
+          multiSelect = multiSelect;
+          anonymous = anonymous;
+          createdAt = Time.now();
+          isActive = true;
+          votes = [];
+        };
+        polls.add(pollId, poll);
+        userVotes.add(pollId, Map.empty<Principal, [Nat]>());
+        pollId;
+      };
+    };
+  };
+
+  public query ({ caller }) func getPoll(pollId : Nat) : async ?Poll {
+    polls.get(pollId);
+  };
+
+  public query ({ caller }) func getAllPolls() : async [Poll] {
+    polls.values().toArray();
+  };
+
+  public shared ({ caller }) func vote(pollId : Nat, optionIndices : [Nat]) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can vote");
+    };
+    if (not isUserActiveAndRegistered(caller)) {
+      Runtime.trap("Unauthorized: User is banned or not registered");
+    };
+    switch (userProfiles.get(caller)) {
+      case (null) { Runtime.trap("Not registered") };
+      case (?_) {
+        switch (polls.get(pollId)) {
+          case (null) { Runtime.trap("Poll not found") };
+          case (?poll) {
+            if (not poll.isActive) {
+              Runtime.trap("Poll is not active");
+            };
+            if (optionIndices.size() == 0) {
+              Runtime.trap("You must select at least one option");
+            };
+            let pollOptionsSize = poll.options.size();
+            if (optionIndices.any(func(i) { i >= pollOptionsSize })) {
+              Runtime.trap("Invalid option index");
+            };
+            if (not poll.multiSelect and optionIndices.size() > 1) {
+              Runtime.trap("This poll does not allow multiple selections");
+            };
+            let pollUserVotes = switch (userVotes.get(pollId)) {
+              case (null) { Runtime.trap("Poll not found") };
+              case (?vu) { vu };
+            };
+            switch (pollUserVotes.get(caller)) {
+              case (?_) { Runtime.trap("You have already voted in this poll") };
+              case (null) {};
+            };
+            let updatedOptions = Array.tabulate(
+              pollOptionsSize,
+              func(i) {
+                if (optionIndices.any(func(idx) { idx == i })) {
+                  {
+                    text = poll.options[i].text;
+                    voteCount = poll.options[i].voteCount + 1;
+                  };
+                } else {
+                  poll.options[i];
+                };
+              },
+            );
+            let updatedPoll : Poll = {
+              id = poll.id;
+              creator = poll.creator;
+              title = poll.title;
+              options = updatedOptions;
+              multiSelect = poll.multiSelect;
+              anonymous = poll.anonymous;
+              createdAt = poll.createdAt;
+              isActive = poll.isActive;
+              votes = poll.votes.concat([caller]);
+            };
+            polls.add(pollId, updatedPoll);
+            pollUserVotes.add(caller, optionIndices);
+          };
+        };
+      };
+    };
+  };
+
+  public shared ({ caller }) func deletePoll(pollId : Nat) : async () {
+    if (caller.toText() != ADMIN_PRINCIPAL) {
+      Runtime.trap("Unauthorized: Only admins can delete polls");
+    };
+    switch (polls.get(pollId)) {
+      case (null) { Runtime.trap("Poll not found") };
+      case (?_) {
+        polls.remove(pollId);
+        userVotes.remove(pollId);
+      };
+    };
+  };
+
+  public query ({ caller }) func getPollResults(pollId : Nat) : async ?{
+    results : [Nat];
+    hasVoted : Bool;
+    options : [PollOption];
+  } {
+    switch (polls.get(pollId)) {
+      case (null) { null };
+      case (?poll) {
+        (
+          switch (userVotes.get(pollId)) {
+            case (null) { null };
+            case (?userVotesMap) {
+              if (userVotesMap.containsKey(caller)) { 
+                ?{
+                  results = poll.options.map(func(o) { o.voteCount });
+                  hasVoted = true;
+                  options = poll.options;
+                } 
+              } else {
+                if (poll.isActive and poll.anonymous) { 
+                  ?{
+                    results = poll.options.map(func(o) { o.voteCount });
+                    hasVoted = false;
+                    options = poll.options;
+                  } 
+                } else { 
+                  ?{
+                    results = poll.options.map(func(o) { o.voteCount });
+                    hasVoted = false;
+                    options = poll.options;
+                  };
+                };
+              };
+            };
+          }
+        );
+      };
+    };
+  };
+
+  public query ({ caller }) func hasVotedInPoll(pollId : Nat) : async Bool {
+    switch (userVotes.get(pollId)) {
+      case (null) { false };
+      case (?vmap) { vmap.containsKey(caller) };
+    };
+  };
+
+  public query ({ caller }) func getUserVotes(pollId : Nat) : async [Nat] {
+    switch (userVotes.get(pollId)) {
+      case (null) { [] };
+      case (?userVotesMap) {
+        switch (userVotesMap.get(caller)) {
+          case (null) { [] };
+          case (?votes) { votes };
+        };
+      };
+    };
+  };
+
   // ====== Messaging ======
   public type Message = {
     id : Nat;
@@ -229,12 +440,12 @@ actor {
   };
 
   var nextMessageId : Nat = 0;
-  let messages = Map.empty<Nat, Message>();
-  let channelMessages = Map.empty<Text, [Nat]>();
+  var messages = Map.empty<Nat, Message>();
+  var channelMessages = Map.empty<Text, [Nat]>();
 
   public shared ({ caller }) func postMessage(channelId : Text, content : Text) : async Nat {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
-      Runtime.trap("Unauthorized: Not registered");
+      Runtime.trap("Unauthorized: Only users can post messages");
     };
     if (not isUserActiveAndRegistered(caller)) {
       Runtime.trap("Unauthorized: User is banned or not registered");
@@ -281,7 +492,7 @@ actor {
 
   public shared ({ caller }) func deleteMessage(messageId : Nat) : async () {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
-      Runtime.trap("Unauthorized: Not registered");
+      Runtime.trap("Unauthorized: Only users can delete messages");
     };
     if (not isUserActiveAndRegistered(caller)) {
       Runtime.trap("Unauthorized: User is banned or not registered");
@@ -300,7 +511,7 @@ actor {
   // Admin-only: delete any message for content moderation
   public shared ({ caller }) func adminDeleteMessage(messageId : Nat) : async () {
     if (caller.toText() != ADMIN_PRINCIPAL) {
-      Runtime.trap("Unauthorized: Admin access required");
+      Runtime.trap("Unauthorized: Only admins can perform this action");
     };
     switch (messages.get(messageId)) {
       case (null) { Runtime.trap("Message not found") };
@@ -309,11 +520,11 @@ actor {
   };
 
   // ====== Reactions ======
-  let messageReactions = Map.empty<Nat, Map.Map<Text, [Principal]>>();
+  var messageReactions = Map.empty<Nat, Map.Map<Text, [Principal]>>();
 
   public shared ({ caller }) func addReaction(messageId : Nat, emoji : Text) : async () {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
-      Runtime.trap("Unauthorized: Not registered");
+      Runtime.trap("Unauthorized: Only users can add reactions");
     };
     if (not isUserActiveAndRegistered(caller)) {
       Runtime.trap("Unauthorized: User is banned or not registered");
@@ -367,7 +578,7 @@ actor {
   };
 
   var nextEventId : Nat = 0;
-  let events = Map.empty<Nat, StudioEvent>();
+  var events = Map.empty<Nat, StudioEvent>();
 
   public shared ({ caller }) func createEvent(
     title : Text,
@@ -377,7 +588,7 @@ actor {
     room : ?Text,
   ) : async Nat {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
-      Runtime.trap("Unauthorized: Not registered");
+      Runtime.trap("Unauthorized: Only users can create events");
     };
     if (not isUserActiveAndRegistered(caller)) {
       Runtime.trap("Unauthorized: User is banned or not registered");
@@ -451,7 +662,7 @@ actor {
   };
 
   var nextFreeSlotId : Nat = 0;
-  let freeTimeSlots = Map.empty<Nat, FreeTimeSlot>();
+  var freeTimeSlots = Map.empty<Nat, FreeTimeSlot>();
 
   public shared ({ caller }) func addFreeTimeSlot(
     room : Text,
@@ -534,3 +745,4 @@ actor {
     code;
   };
 };
+

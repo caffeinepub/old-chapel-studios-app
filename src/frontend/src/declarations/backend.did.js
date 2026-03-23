@@ -25,6 +25,21 @@ export const UserRole = IDL.Variant({
   'guest' : IDL.Null,
 });
 export const Time = IDL.Int;
+export const PollOption = IDL.Record({
+  'voteCount' : IDL.Nat,
+  'text' : IDL.Text,
+});
+export const Poll = IDL.Record({
+  'id' : IDL.Nat,
+  'title' : IDL.Text,
+  'creator' : IDL.Principal,
+  'votes' : IDL.Vec(IDL.Principal),
+  'createdAt' : Time,
+  'multiSelect' : IDL.Bool,
+  'isActive' : IDL.Bool,
+  'anonymous' : IDL.Bool,
+  'options' : IDL.Vec(PollOption),
+});
 export const RSVP = IDL.Record({
   'name' : IDL.Text,
   'inviteCode' : IDL.Text,
@@ -142,9 +157,16 @@ export const idlService = IDL.Service({
       [IDL.Nat],
       [],
     ),
+  'createPoll' : IDL.Func(
+      [IDL.Text, IDL.Vec(IDL.Text), IDL.Bool, IDL.Bool],
+      [IDL.Nat],
+      [],
+    ),
   'deleteEvent' : IDL.Func([IDL.Nat], [], []),
   'deleteMessage' : IDL.Func([IDL.Nat], [], []),
+  'deletePoll' : IDL.Func([IDL.Nat], [], []),
   'generateInviteCode' : IDL.Func([], [IDL.Text], []),
+  'getAllPolls' : IDL.Func([], [IDL.Vec(Poll)], ['query']),
   'getAllRSVPs' : IDL.Func([], [IDL.Vec(RSVP)], ['query']),
   'getAllUsers' : IDL.Func(
       [],
@@ -157,6 +179,20 @@ export const idlService = IDL.Service({
   'getFreeTimeSlots' : IDL.Func([], [IDL.Vec(FreeTimeSlot)], ['query']),
   'getInviteCodes' : IDL.Func([], [IDL.Vec(InviteCode)], ['query']),
   'getMessages' : IDL.Func([IDL.Text], [IDL.Vec(Message)], ['query']),
+  'getPoll' : IDL.Func([IDL.Nat], [IDL.Opt(Poll)], ['query']),
+  'getPollResults' : IDL.Func(
+      [IDL.Nat],
+      [
+        IDL.Opt(
+          IDL.Record({
+            'results' : IDL.Vec(IDL.Nat),
+            'hasVoted' : IDL.Bool,
+            'options' : IDL.Vec(PollOption),
+          })
+        ),
+      ],
+      ['query'],
+    ),
   'getReactions' : IDL.Func(
       [IDL.Nat],
       [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Vec(IDL.Principal)))],
@@ -168,6 +204,8 @@ export const idlService = IDL.Service({
       [IDL.Opt(UserProfile)],
       ['query'],
     ),
+  'getUserVotes' : IDL.Func([IDL.Nat], [IDL.Vec(IDL.Nat)], ['query']),
+  'hasVotedInPoll' : IDL.Func([IDL.Nat], [IDL.Bool], ['query']),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'isCallerApproved' : IDL.Func([], [IDL.Bool], ['query']),
   'isCallerRegistered' : IDL.Func([], [IDL.Bool], ['query']),
@@ -182,6 +220,7 @@ export const idlService = IDL.Service({
   'setRoomAvailability' : IDL.Func([IDL.Vec(RoomSlot)], [], []),
   'submitRSVP' : IDL.Func([IDL.Text, IDL.Bool, IDL.Text], [], []),
   'unbanUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
+  'vote' : IDL.Func([IDL.Nat, IDL.Vec(IDL.Nat)], [], []),
 });
 
 export const idlInitArgs = [];
@@ -204,6 +243,18 @@ export const idlFactory = ({ IDL }) => {
     'guest' : IDL.Null,
   });
   const Time = IDL.Int;
+  const PollOption = IDL.Record({ 'voteCount' : IDL.Nat, 'text' : IDL.Text });
+  const Poll = IDL.Record({
+    'id' : IDL.Nat,
+    'title' : IDL.Text,
+    'creator' : IDL.Principal,
+    'votes' : IDL.Vec(IDL.Principal),
+    'createdAt' : Time,
+    'multiSelect' : IDL.Bool,
+    'isActive' : IDL.Bool,
+    'anonymous' : IDL.Bool,
+    'options' : IDL.Vec(PollOption),
+  });
   const RSVP = IDL.Record({
     'name' : IDL.Text,
     'inviteCode' : IDL.Text,
@@ -321,9 +372,16 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Nat],
         [],
       ),
+    'createPoll' : IDL.Func(
+        [IDL.Text, IDL.Vec(IDL.Text), IDL.Bool, IDL.Bool],
+        [IDL.Nat],
+        [],
+      ),
     'deleteEvent' : IDL.Func([IDL.Nat], [], []),
     'deleteMessage' : IDL.Func([IDL.Nat], [], []),
+    'deletePoll' : IDL.Func([IDL.Nat], [], []),
     'generateInviteCode' : IDL.Func([], [IDL.Text], []),
+    'getAllPolls' : IDL.Func([], [IDL.Vec(Poll)], ['query']),
     'getAllRSVPs' : IDL.Func([], [IDL.Vec(RSVP)], ['query']),
     'getAllUsers' : IDL.Func(
         [],
@@ -336,6 +394,20 @@ export const idlFactory = ({ IDL }) => {
     'getFreeTimeSlots' : IDL.Func([], [IDL.Vec(FreeTimeSlot)], ['query']),
     'getInviteCodes' : IDL.Func([], [IDL.Vec(InviteCode)], ['query']),
     'getMessages' : IDL.Func([IDL.Text], [IDL.Vec(Message)], ['query']),
+    'getPoll' : IDL.Func([IDL.Nat], [IDL.Opt(Poll)], ['query']),
+    'getPollResults' : IDL.Func(
+        [IDL.Nat],
+        [
+          IDL.Opt(
+            IDL.Record({
+              'results' : IDL.Vec(IDL.Nat),
+              'hasVoted' : IDL.Bool,
+              'options' : IDL.Vec(PollOption),
+            })
+          ),
+        ],
+        ['query'],
+      ),
     'getReactions' : IDL.Func(
         [IDL.Nat],
         [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Vec(IDL.Principal)))],
@@ -347,6 +419,8 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Opt(UserProfile)],
         ['query'],
       ),
+    'getUserVotes' : IDL.Func([IDL.Nat], [IDL.Vec(IDL.Nat)], ['query']),
+    'hasVotedInPoll' : IDL.Func([IDL.Nat], [IDL.Bool], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'isCallerApproved' : IDL.Func([], [IDL.Bool], ['query']),
     'isCallerRegistered' : IDL.Func([], [IDL.Bool], ['query']),
@@ -361,6 +435,7 @@ export const idlFactory = ({ IDL }) => {
     'setRoomAvailability' : IDL.Func([IDL.Vec(RoomSlot)], [], []),
     'submitRSVP' : IDL.Func([IDL.Text, IDL.Bool, IDL.Text], [], []),
     'unbanUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
+    'vote' : IDL.Func([IDL.Nat, IDL.Vec(IDL.Nat)], [], []),
   });
 };
 

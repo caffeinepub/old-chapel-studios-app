@@ -38,6 +38,18 @@ export interface Message {
   'timestamp' : bigint,
   'authorPrincipal' : Principal,
 }
+export interface Poll {
+  'id' : bigint,
+  'title' : string,
+  'creator' : Principal,
+  'votes' : Array<Principal>,
+  'createdAt' : Time,
+  'multiSelect' : boolean,
+  'isActive' : boolean,
+  'anonymous' : boolean,
+  'options' : Array<PollOption>,
+}
+export interface PollOption { 'voteCount' : bigint, 'text' : string }
 export interface RSVP {
   'name' : string,
   'inviteCode' : string,
@@ -122,9 +134,12 @@ export interface _SERVICE {
     [string, string, bigint, bigint, [] | [string]],
     bigint
   >,
+  'createPoll' : ActorMethod<[string, Array<string>, boolean, boolean], bigint>,
   'deleteEvent' : ActorMethod<[bigint], undefined>,
   'deleteMessage' : ActorMethod<[bigint], undefined>,
+  'deletePoll' : ActorMethod<[bigint], undefined>,
   'generateInviteCode' : ActorMethod<[], string>,
+  'getAllPolls' : ActorMethod<[], Array<Poll>>,
   'getAllRSVPs' : ActorMethod<[], Array<RSVP>>,
   'getAllUsers' : ActorMethod<[], Array<[Principal, UserProfile]>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
@@ -133,9 +148,22 @@ export interface _SERVICE {
   'getFreeTimeSlots' : ActorMethod<[], Array<FreeTimeSlot>>,
   'getInviteCodes' : ActorMethod<[], Array<InviteCode>>,
   'getMessages' : ActorMethod<[string], Array<Message>>,
+  'getPoll' : ActorMethod<[bigint], [] | [Poll]>,
+  'getPollResults' : ActorMethod<
+    [bigint],
+    [] | [
+      {
+        'results' : Array<bigint>,
+        'hasVoted' : boolean,
+        'options' : Array<PollOption>,
+      }
+    ]
+  >,
   'getReactions' : ActorMethod<[bigint], Array<[string, Array<Principal>]>>,
   'getRoomAvailability' : ActorMethod<[], Array<RoomSlot>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
+  'getUserVotes' : ActorMethod<[bigint], Array<bigint>>,
+  'hasVotedInPoll' : ActorMethod<[bigint], boolean>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'isCallerApproved' : ActorMethod<[], boolean>,
   'isCallerRegistered' : ActorMethod<[], boolean>,
@@ -150,6 +178,7 @@ export interface _SERVICE {
   'setRoomAvailability' : ActorMethod<[Array<RoomSlot>], undefined>,
   'submitRSVP' : ActorMethod<[string, boolean, string], undefined>,
   'unbanUser' : ActorMethod<[Principal], string>,
+  'vote' : ActorMethod<[bigint, Array<bigint>], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

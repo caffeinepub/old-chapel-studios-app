@@ -17,6 +17,17 @@ export interface StudioEvent {
     room?: string;
     description: string;
 }
+export interface Poll {
+    id: bigint;
+    title: string;
+    creator: Principal;
+    votes: Array<Principal>;
+    createdAt: Time;
+    multiSelect: boolean;
+    isActive: boolean;
+    anonymous: boolean;
+    options: Array<PollOption>;
+}
 export interface InviteCode {
     created: Time;
     code: string;
@@ -54,6 +65,10 @@ export interface Message {
     authorName: string;
     timestamp: bigint;
     authorPrincipal: Principal;
+}
+export interface PollOption {
+    voteCount: bigint;
+    text: string;
 }
 export interface UserProfile {
     status: UserStatus;
@@ -94,9 +109,12 @@ export interface backendInterface {
     banUser(user: Principal): Promise<string>;
     checkIfCallerIsAdmin(): Promise<boolean>;
     createEvent(title: string, description: string, startTime: bigint, endTime: bigint, room: string | null): Promise<bigint>;
+    createPoll(title: string, options: Array<string>, multiSelect: boolean, anonymous: boolean): Promise<bigint>;
     deleteEvent(id: bigint): Promise<void>;
     deleteMessage(messageId: bigint): Promise<void>;
+    deletePoll(pollId: bigint): Promise<void>;
     generateInviteCode(): Promise<string>;
+    getAllPolls(): Promise<Array<Poll>>;
     getAllRSVPs(): Promise<Array<RSVP>>;
     getAllUsers(): Promise<Array<[Principal, UserProfile]>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
@@ -105,9 +123,17 @@ export interface backendInterface {
     getFreeTimeSlots(): Promise<Array<FreeTimeSlot>>;
     getInviteCodes(): Promise<Array<InviteCode>>;
     getMessages(channelId: string): Promise<Array<Message>>;
+    getPoll(pollId: bigint): Promise<Poll | null>;
+    getPollResults(pollId: bigint): Promise<{
+        results: Array<bigint>;
+        hasVoted: boolean;
+        options: Array<PollOption>;
+    } | null>;
     getReactions(messageId: bigint): Promise<Array<[string, Array<Principal>]>>;
     getRoomAvailability(): Promise<Array<RoomSlot>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
+    getUserVotes(pollId: bigint): Promise<Array<bigint>>;
+    hasVotedInPoll(pollId: bigint): Promise<boolean>;
     isCallerAdmin(): Promise<boolean>;
     isCallerApproved(): Promise<boolean>;
     isCallerRegistered(): Promise<boolean>;
@@ -122,4 +148,5 @@ export interface backendInterface {
     setRoomAvailability(slots: Array<RoomSlot>): Promise<void>;
     submitRSVP(name: string, attending: boolean, inviteCode: string): Promise<void>;
     unbanUser(user: Principal): Promise<string>;
+    vote(pollId: bigint, optionIndices: Array<bigint>): Promise<void>;
 }
