@@ -23,8 +23,11 @@ import {
   FileAudio,
   FileImage,
   FileText,
+  Loader2,
+  Music,
   Plus,
   Share2,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
@@ -88,6 +91,61 @@ function detectFileType(file: File): FileType {
   return "doc";
 }
 
+function getMimeFromFilename(filename: string): string {
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  const map: Record<string, string> = {
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    gif: "image/gif",
+    webp: "image/webp",
+    svg: "image/svg+xml",
+    mp3: "audio/mpeg",
+    wav: "audio/wav",
+    ogg: "audio/ogg",
+    m4a: "audio/mp4",
+    mp4: "video/mp4",
+    mov: "video/quicktime",
+    pdf: "application/pdf",
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    txt: "text/plain",
+    zip: "application/zip",
+  };
+  return map[ext] || "application/octet-stream";
+}
+
+async function handleDownload(
+  file: { name: string; downloadUrl?: string },
+  setDownloading: (id: string | null) => void,
+) {
+  if (!file.downloadUrl) return;
+  setDownloading(file.name);
+  try {
+    const resp = await fetch(file.downloadUrl);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const rawBlob = await resp.blob();
+    const mime =
+      rawBlob.type && rawBlob.type !== "application/octet-stream"
+        ? rawBlob.type
+        : getMimeFromFilename(file.name);
+    const blob = new Blob([rawBlob], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = file.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    toast.error(`Download failed: ${msg}`);
+  } finally {
+    setDownloading(null);
+  }
+}
+
 export default function FilesPage() {
   const { identity } = useInternetIdentity();
   const [folders, setFolders] = useState<
@@ -101,6 +159,8 @@ export default function FilesPage() {
   const [uploadFolderId, setUploadFolderId] = useState("");
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [previewFile, setPreviewFile] = useState<UploadedFile | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,7 +168,6 @@ export default function FilesPage() {
     if (file) {
       setSelectedFile(file);
     }
-    // Reset input so the same file can be re-selected
     e.target.value = "";
   };
 
@@ -192,6 +251,30 @@ export default function FilesPage() {
     }
   };
 
+  const handleDeleteFile = (fileId: string) => {
+    setFolders((prev) =>
+      prev.map((f) => {
+        if (f.id !== activeFolder?.id) return f;
+        const filtered = (f.uploadedFiles ?? []).filter(
+          (uf) => uf.id !== fileId,
+        );
+        return { ...f, uploadedFiles: filtered, fileCount: f.fileCount - 1 };
+      }),
+    );
+    setActiveFolder((prev) => {
+      if (!prev) return prev;
+      const filtered = (prev.uploadedFiles ?? []).filter(
+        (uf) => uf.id !== fileId,
+      );
+      return {
+        ...prev,
+        uploadedFiles: filtered,
+        fileCount: prev.fileCount - 1,
+      };
+    });
+    toast.success("File deleted");
+  };
+
   const allFilesInFolder = (folder: (typeof folders)[0]) => [
     ...folder.files,
     ...(folder.uploadedFiles ?? []).map((f) => ({
@@ -199,6 +282,186 @@ export default function FilesPage() {
       uploaderId: f.uploaderId,
     })),
   ];
+
+  function renderPreviewModal() {
+    if (!previewFile) return null;
+    const isImage = previewFile.type === "image";
+    const isAudio = previewFile.type === "audio";
+    const isDownloading = downloadingId === previewFile.name;
+
+    return (
+      <AnimatePresence>
+        {previewFile && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+            onClick={(e) =>
+              e.target === e.currentTarget && setPreviewFile(null)
+            }
+            data-ocid="files.modal"
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.92, opacity: 0 }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="w-full max-w-lg mx-4 rounded-2xl overflow-hidden flex flex-col"
+              style={{
+                backgroundColor: "oklch(0.14 0.01 45)",
+                border: "1px solid oklch(0.28 0.015 45)",
+                maxHeight: "90vh",
+              }}
+            >
+              {/* Header */}
+              <div
+                className="flex items-center gap-3 px-4 py-3 flex-shrink-0"
+                style={{ borderBottom: "1px solid oklch(0.22 0.012 45)" }}
+              >
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                  style={{
+                    backgroundColor: `${FILE_COLORS[previewFile.type] || "#666"}22`,
+                  }}
+                >
+                  <FileIcon
+                    type={previewFile.type}
+                    className="w-4 h-4"
+                    style={
+                      {
+                        color: FILE_COLORS[previewFile.type] || "#999",
+                      } as React.CSSProperties
+                    }
+                  />
+                </div>
+                <p className="flex-1 text-sm font-medium truncate">
+                  {previewFile.name}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setPreviewFile(null)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-accent transition-colors flex-shrink-0"
+                  data-ocid="files.close_button"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Preview content */}
+              <div
+                className="flex-1 overflow-auto flex items-center justify-center p-4"
+                style={{ minHeight: 0 }}
+              >
+                {isImage && previewFile.downloadUrl ? (
+                  <img
+                    src={previewFile.downloadUrl}
+                    alt={previewFile.name}
+                    className="max-w-full max-h-full object-contain rounded-lg"
+                    style={{ maxHeight: "60vh" }}
+                  />
+                ) : isAudio && previewFile.downloadUrl ? (
+                  <div className="w-full flex flex-col items-center gap-4 py-6">
+                    <div
+                      className="w-20 h-20 rounded-2xl flex items-center justify-center"
+                      style={{ backgroundColor: "#FF450022" }}
+                    >
+                      <Music
+                        className="w-10 h-10"
+                        style={{ color: "#FF4500" }}
+                      />
+                    </div>
+                    <p className="text-sm font-medium text-center px-4 truncate max-w-full">
+                      {previewFile.name}
+                    </p>
+                    {/* biome-ignore lint/a11y/useMediaCaption: user-uploaded file without captions */}
+                    <audio
+                      controls
+                      className="w-full mt-2"
+                      src={previewFile.downloadUrl}
+                    >
+                      Your browser does not support the audio element.
+                    </audio>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-4 py-8 px-4">
+                    <div
+                      className="w-24 h-24 rounded-2xl flex items-center justify-center"
+                      style={{
+                        backgroundColor: `${FILE_COLORS[previewFile.type] || "#666"}22`,
+                      }}
+                    >
+                      <FileIcon
+                        type={previewFile.type}
+                        className="w-12 h-12"
+                        style={
+                          {
+                            color: FILE_COLORS[previewFile.type] || "#999",
+                          } as React.CSSProperties
+                        }
+                      />
+                    </div>
+                    <div className="text-center">
+                      <p className="font-semibold text-base">
+                        {previewFile.name}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {previewFile.size}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer actions */}
+              <div
+                className="flex gap-2 p-4 flex-shrink-0"
+                style={{ borderTop: "1px solid oklch(0.22 0.012 45)" }}
+              >
+                <Button
+                  variant="ghost"
+                  className="flex-1 h-11 rounded-xl"
+                  onClick={() => setPreviewFile(null)}
+                  data-ocid="files.cancel_button"
+                >
+                  Close
+                </Button>
+                {previewFile.downloadUrl && (
+                  <Button
+                    className="flex-1 h-11 rounded-xl font-semibold text-white"
+                    style={{ backgroundColor: "#FF4500" }}
+                    disabled={isDownloading}
+                    onClick={() =>
+                      handleDownload(
+                        {
+                          name: previewFile.name,
+                          downloadUrl: previewFile.downloadUrl,
+                        },
+                        setDownloadingId,
+                      )
+                    }
+                    data-ocid="files.primary_button"
+                  >
+                    {isDownloading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Downloading…
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4 mr-2" />
+                        Download
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    );
+  }
 
   // === File List View ===
   if (activeFolder) {
@@ -217,6 +480,7 @@ export default function FilesPage() {
             type="button"
             onClick={() => setActiveFolder(null)}
             className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-accent transition-colors"
+            data-ocid="files.link"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -235,7 +499,10 @@ export default function FilesPage() {
         <main className="flex-1 pb-24 overflow-y-auto">
           <div className="max-w-2xl mx-auto px-4 pt-4 space-y-2">
             {allFiles.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
+              <div
+                className="text-center py-12 text-muted-foreground"
+                data-ocid="files.empty_state"
+              >
                 <File className="w-10 h-10 mx-auto mb-2 opacity-20" />
                 <p className="text-sm">No files yet</p>
                 <p className="text-xs mt-1">
@@ -245,18 +512,22 @@ export default function FilesPage() {
             ) : (
               allFiles.map((file, idx) => {
                 const uploader = getUserById(file.uploaderId);
-                const downloadUrl = (file as UploadedFile).downloadUrl;
+                const uploadedFile = file as UploadedFile;
+                const hasDownload = !!uploadedFile.downloadUrl;
+                const isDownloading = downloadingId === file.name;
                 return (
                   <motion.div
                     key={file.id}
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.04 }}
-                    className="flex items-center gap-3 p-3 rounded-xl border"
+                    className="flex items-center gap-3 p-3 rounded-xl border cursor-pointer hover:brightness-110 transition-all"
                     style={{
                       backgroundColor: "oklch(0.17 0.01 45)",
                       borderColor: "oklch(0.28 0.015 45)",
                     }}
+                    onClick={() => hasDownload && setPreviewFile(uploadedFile)}
+                    data-ocid={`files.item.${idx + 1}`}
                   >
                     <div
                       className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -283,17 +554,33 @@ export default function FilesPage() {
                         {file.uploadDate}
                       </p>
                     </div>
-                    <div className="flex gap-1">
-                      {downloadUrl ? (
-                        <a
-                          href={downloadUrl}
-                          download={file.name}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-accent transition-colors"
+                    <div
+                      className="flex gap-1"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      {hasDownload ? (
+                        <button
+                          type="button"
+                          disabled={isDownloading}
+                          onClick={() =>
+                            handleDownload(
+                              {
+                                name: file.name,
+                                downloadUrl: uploadedFile.downloadUrl,
+                              },
+                              setDownloadingId,
+                            )
+                          }
+                          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-accent transition-colors disabled:opacity-50"
+                          data-ocid={`files.secondary_button.${idx + 1}`}
                         >
-                          <Download className="w-3.5 h-3.5 text-muted-foreground" />
-                        </a>
+                          {isDownloading ? (
+                            <Loader2 className="w-3.5 h-3.5 text-muted-foreground animate-spin" />
+                          ) : (
+                            <Download className="w-3.5 h-3.5 text-muted-foreground" />
+                          )}
+                        </button>
                       ) : (
                         <button
                           type="button"
@@ -308,6 +595,16 @@ export default function FilesPage() {
                       >
                         <Share2 className="w-3.5 h-3.5 text-muted-foreground" />
                       </button>
+                      {hasDownload && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteFile(file.id)}
+                          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-destructive/20 transition-colors group"
+                          data-ocid={`files.delete_button.${idx + 1}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-muted-foreground group-hover:text-destructive transition-colors" />
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 );
@@ -324,11 +621,13 @@ export default function FilesPage() {
           }}
           className="fixed bottom-20 right-4 w-14 h-14 rounded-2xl flex items-center justify-center shadow-orange transition-all hover:scale-105 active:scale-95 z-40"
           style={{ backgroundColor: "#FF4500" }}
+          data-ocid="files.upload_button"
         >
           <Upload className="w-6 h-6 text-white" />
         </button>
 
         {renderUploadModal()}
+        {renderPreviewModal()}
       </div>
     );
   }
@@ -356,6 +655,7 @@ export default function FilesPage() {
                 backgroundColor: "oklch(0.17 0.01 45)",
                 border: "1px solid oklch(0.28 0.015 45)",
               }}
+              data-ocid="files.dialog"
             >
               <div className="flex items-center justify-between">
                 <h2
@@ -374,13 +674,13 @@ export default function FilesPage() {
                     }
                   }}
                   className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-accent"
+                  data-ocid="files.close_button"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               <div className="flex flex-col gap-3">
-                {/* Hidden file input */}
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -389,7 +689,6 @@ export default function FilesPage() {
                   accept="audio/*,video/*,image/*,.pdf,.doc,.docx,.txt,.zip"
                 />
 
-                {/* Dropzone / file picker trigger */}
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -402,6 +701,7 @@ export default function FilesPage() {
                       ? "oklch(0.18 0.015 30)"
                       : undefined,
                   }}
+                  data-ocid="files.dropzone"
                 >
                   {selectedFile ? (
                     <>
@@ -434,9 +734,11 @@ export default function FilesPage() {
                   )}
                 </button>
 
-                {/* Upload progress */}
                 {uploadProgress !== null && (
-                  <div className="flex flex-col gap-1">
+                  <div
+                    className="flex flex-col gap-1"
+                    data-ocid="files.loading_state"
+                  >
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>Uploading…</span>
                       <span>{uploadProgress}%</span>
@@ -467,6 +769,7 @@ export default function FilesPage() {
                       backgroundColor: "oklch(0.20 0.01 45)",
                       borderColor: "oklch(0.28 0.015 45)",
                     }}
+                    data-ocid="files.select"
                   >
                     <SelectValue placeholder="Choose folder…" />
                   </SelectTrigger>
@@ -492,6 +795,7 @@ export default function FilesPage() {
                   }}
                   className="flex-1 h-11 rounded-xl"
                   disabled={isUploading}
+                  data-ocid="files.cancel_button"
                 >
                   Cancel
                 </Button>
@@ -500,6 +804,7 @@ export default function FilesPage() {
                   disabled={!selectedFile || !uploadFolderId || isUploading}
                   className="flex-1 h-11 rounded-xl font-semibold text-white"
                   style={{ backgroundColor: "#FF4500" }}
+                  data-ocid="files.submit_button"
                 >
                   {isUploading ? "Uploading…" : "Upload"}
                 </Button>
@@ -547,6 +852,7 @@ export default function FilesPage() {
                   backgroundColor: "oklch(0.17 0.01 45)",
                   borderColor: "oklch(0.28 0.015 45)",
                 }}
+                data-ocid={`files.item.${idx + 1}`}
               >
                 <span className="text-4xl">{folder.emoji}</span>
                 <div className="text-center">
@@ -625,11 +931,13 @@ export default function FilesPage() {
         onClick={() => setShowUpload(true)}
         className="fixed bottom-20 right-4 w-14 h-14 rounded-2xl flex items-center justify-center shadow-orange transition-all hover:scale-105 active:scale-95 z-40"
         style={{ backgroundColor: "#FF4500" }}
+        data-ocid="files.upload_button"
       >
         <Plus className="w-7 h-7 text-white" />
       </button>
 
       {renderUploadModal()}
+      {renderPreviewModal()}
     </div>
   );
 }
