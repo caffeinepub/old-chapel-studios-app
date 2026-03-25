@@ -211,6 +211,9 @@ export interface backendInterface {
     createEvent(title: string, description: string, startTime: bigint, endTime: bigint, room: string | null): Promise<bigint>;
     createPoll(title: string, options: Array<string>, multiSelect: boolean, anonymous: boolean): Promise<bigint>;
     deleteEvent(id: bigint): Promise<void>;
+    deleteFileRecord(id: bigint): Promise<void>;
+    getFileRecords(): Promise<Array<any>>;
+    saveFileRecord(name: string, fileType: string, size: string, blobHash: string, downloadUrl: string, folderId: string, uploadDate: string): Promise<bigint>;
     deleteMessage(messageId: bigint): Promise<void>;
     deletePoll(pollId: bigint): Promise<void>;
     generateInviteCode(): Promise<string>;
@@ -956,6 +959,27 @@ export class Backend implements backendInterface {
             const result = await this.actor.vote(arg0, arg1);
             return result;
         }
+    }
+    async getFileRecords(): Promise<Array<any>> {
+        const result = await this.actor.getFileRecords();
+        return result.map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            fileType: r.fileType,
+            size: r.size,
+            blobHash: r.blobHash,
+            downloadUrl: r.downloadUrl,
+            folderId: r.folderId,
+            uploadDate: r.uploadDate,
+            uploaderPrincipal: r.uploaderPrincipal,
+        }));
+    }
+    async saveFileRecord(name: string, fileType: string, size: string, blobHash: string, downloadUrl: string, folderId: string, uploadDate: string): Promise<bigint> {
+        const result = await this.actor.saveFileRecord(name, fileType, size, blobHash, downloadUrl, folderId, uploadDate);
+        return result;
+    }
+    async deleteFileRecord(id: bigint): Promise<void> {
+        await this.actor.deleteFileRecord(id);
     }
 }
 function from_candid_AppUserRole_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _AppUserRole): AppUserRole {

@@ -52,10 +52,11 @@ actor {
     phone : ?Text;
   };
 
-  var userProfiles = Map.empty<Principal, UserProfile>();
+  stable var userProfiles = Map.empty<Principal, UserProfile>();
 
   // Helper function to check if user is registered and not banned
   func isUserActiveAndRegistered(caller : Principal) : Bool {
+    if (caller.toText() == ADMIN_PRINCIPAL) { return true };
     switch (userProfiles.get(caller)) {
       case (null) { false };
       case (?profile) {
@@ -236,9 +237,9 @@ actor {
     votes : [Principal];
   };
 
-  var nextPollId : Nat = 0;
-  var polls = Map.empty<Nat, Poll>();
-  var userVotes = Map.empty<Nat, Map.Map<Principal, [Nat]>>();
+  stable var nextPollId : Nat = 0;
+  stable var polls = Map.empty<Nat, Poll>();
+  stable var userVotes = Map.empty<Nat, Map.Map<Principal, [Nat]>>();
 
   public shared ({ caller }) func createPoll(
     title : Text,
@@ -439,9 +440,9 @@ actor {
     timestamp : Int;
   };
 
-  var nextMessageId : Nat = 0;
-  var messages = Map.empty<Nat, Message>();
-  var channelMessages = Map.empty<Text, [Nat]>();
+  stable var nextMessageId : Nat = 0;
+  stable var messages = Map.empty<Nat, Message>();
+  stable var channelMessages = Map.empty<Text, [Nat]>();
 
   public shared ({ caller }) func postMessage(channelId : Text, content : Text) : async Nat {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
@@ -520,7 +521,7 @@ actor {
   };
 
   // ====== Reactions ======
-  var messageReactions = Map.empty<Nat, Map.Map<Text, [Principal]>>();
+  stable var messageReactions = Map.empty<Nat, Map.Map<Text, [Principal]>>();
 
   public shared ({ caller }) func addReaction(messageId : Nat, emoji : Text) : async () {
     if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
@@ -577,8 +578,8 @@ actor {
     createdBy : Principal;
   };
 
-  var nextEventId : Nat = 0;
-  var events = Map.empty<Nat, StudioEvent>();
+  stable var nextEventId : Nat = 0;
+  stable var events = Map.empty<Nat, StudioEvent>();
 
   public shared ({ caller }) func createEvent(
     title : Text,
@@ -638,7 +639,7 @@ actor {
     available : Bool;
   };
 
-  var roomSlots : [RoomSlot] = [];
+  stable var roomSlots : [RoomSlot] = [];
 
   public shared ({ caller }) func setRoomAvailability(slots : [RoomSlot]) : async () {
     if (caller.toText() != ADMIN_PRINCIPAL) {
@@ -661,8 +662,8 @@ actor {
     note : Text;
   };
 
-  var nextFreeSlotId : Nat = 0;
-  var freeTimeSlots = Map.empty<Nat, FreeTimeSlot>();
+  stable var nextFreeSlotId : Nat = 0;
+  stable var freeTimeSlots = Map.empty<Nat, FreeTimeSlot>();
 
   public shared ({ caller }) func addFreeTimeSlot(
     room : Text,
@@ -712,8 +713,8 @@ actor {
     uploaderPrincipal : Principal;
   };
 
-  var nextFileRecordId : Nat = 0;
-  var fileRecords = Map.empty<Nat, FileRecord>();
+  stable var nextFileRecordId : Nat = 0;
+  stable var fileRecords = Map.empty<Nat, FileRecord>();
 
   public shared ({ caller }) func saveFileRecord(
     name : Text,

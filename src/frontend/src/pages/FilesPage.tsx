@@ -169,12 +169,16 @@ export default function FilesPage() {
 
   // Load file records from backend on mount
   useEffect(() => {
-    if (!actor || actorFetching) return;
+    if (actorFetching) return;
+    if (!actor) {
+      setLoadingFiles(false);
+      return;
+    }
 
     const load = async () => {
       setLoadingFiles(true);
       try {
-        const records = await (actor as any).getFileRecords();
+        const records = await actor.getFileRecords();
         setFolders((prev) => {
           const updated = prev.map((f) => ({
             ...f,
@@ -267,7 +271,7 @@ export default function FilesPage() {
       let backendId: bigint | undefined;
       if (actor) {
         try {
-          backendId = await (actor as any).saveFileRecord(
+          backendId = await actor.saveFileRecord(
             selectedFile.name,
             fileType,
             sizeStr,
@@ -276,8 +280,9 @@ export default function FilesPage() {
             uploadFolderId,
             uploadDate,
           );
-        } catch {
-          // continue even if backend save fails
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          throw new Error(`Could not save file to backend: ${errMsg}`);
         }
       }
 
@@ -345,7 +350,7 @@ export default function FilesPage() {
     // Delete from backend
     if (backendId !== undefined && actor) {
       try {
-        await (actor as any).deleteFileRecord(backendId);
+        await actor.deleteFileRecord(backendId);
       } catch {
         // continue even if backend delete fails
       }

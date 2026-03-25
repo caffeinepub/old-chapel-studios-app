@@ -75,7 +75,7 @@ function sameDay(a: Date, b: Date): boolean {
 export default function CalendarPage() {
   const today = new Date();
   const { isAdmin } = useIsAdmin();
-  const { actor } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
   const [view, setView] = useState<CalendarView>("month");
   const [displayDate, setDisplayDate] = useState(today);
   const [events, setEvents] = useState<LocalEvent[]>([]);
@@ -122,8 +122,13 @@ export default function CalendarPage() {
   }, [actor]);
 
   useEffect(() => {
+    if (actorFetching) return;
+    if (!actor) {
+      setLoading(false);
+      return;
+    }
     loadEvents();
-  }, [loadEvents]);
+  }, [loadEvents, actor, actorFetching]);
 
   const calDays = getDaysInMonth(
     displayDate.getFullYear(),

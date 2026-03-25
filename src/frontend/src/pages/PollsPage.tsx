@@ -16,7 +16,7 @@ interface PollWithVotes extends Poll {
 }
 
 export default function PollsPage() {
-  const { actor } = useActor();
+  const { actor, isFetching: actorFetching } = useActor();
 
   const [polls, setPolls] = useState<PollWithVotes[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +66,11 @@ export default function PollsPage() {
   }, [actor]);
 
   useEffect(() => {
-    if (!actor) return;
+    if (actorFetching) return;
+    if (!actor) {
+      setLoading(false);
+      return;
+    }
     const init = async () => {
       const [, adminResult] = await Promise.allSettled([
         loadPolls(),
@@ -77,7 +81,7 @@ export default function PollsPage() {
       }
     };
     init();
-  }, [actor, loadPolls]);
+  }, [actor, actorFetching, loadPolls]);
 
   const handleVoteToggle = (
     pollId: string,
