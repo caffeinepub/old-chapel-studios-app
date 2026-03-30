@@ -73,6 +73,8 @@ export default function ChatsPage({ onChatOpenChange }: ChatsPageProps) {
   const [newGroupName, setNewGroupName] = useState("");
   const [extraGroups, setExtraGroups] = useState<ChatGroup[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  // Track the active channel id for polling
+  const activeGroupIdRef = useRef<string | null>(null);
 
   // Reactions state
   const [reactions, setReactions] = useState<ReactionMap>(new Map());
@@ -94,10 +96,11 @@ export default function ChatsPage({ onChatOpenChange }: ChatsPageProps) {
   const isAdmin = myPrincipal === ADMIN_PRINCIPAL;
   const [deletingMsgId, setDeletingMsgId] = useState<string | null>(null);
 
+  // loadMessages with optional silent flag — silent=true skips the loading spinner (used for polling/reload)
   const loadMessages = useCallback(
-    async (channelId: string) => {
+    async (channelId: string, silent = false) => {
       if (!actor) return;
-      setLoadingMessages(true);
+      if (!silent) setLoadingMessages(true);
       try {
         const msgs = await actor.getMessages(channelId);
         const reversed = [...(msgs as BackendMessage[])].reverse();
@@ -122,15 +125,31 @@ export default function ChatsPage({ onChatOpenChange }: ChatsPageProps) {
               ][],
             ),
           );
+        } else {
+          setReactions(new Map());
         }
       } catch {
-        setBackendMessages([]);
+        if (!silent) setBackendMessages([]);
       } finally {
-        setLoadingMessages(false);
+        if (!silent) setLoadingMessages(false);
       }
     },
     [actor],
   );
+
+  // Auto-poll for new messages every 4 seconds while a channel is open
+  useEffect(() => {
+    if (!activeGroup || !actor) return;
+    activeGroupIdRef.current = activeGroup.id;
+    const interval = setInterval(() => {
+      if (activeGroupIdRef.current) {
+        loadMessages(activeGroupIdRef.current, true);
+      }
+    }, 4000);
+    return () => {
+      clearInterval(interval);
+    };
+  }, [activeGroup, actor, loadMessages]);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll after messages update
   useEffect(() => {
@@ -155,6 +174,7 @@ export default function ChatsPage({ onChatOpenChange }: ChatsPageProps) {
   };
 
   const closeGroup = () => {
+    activeGroupIdRef.current = null;
     setActiveGroup(null);
     setBackendMessages([]);
     setReactions(new Map());
@@ -166,10 +186,26 @@ export default function ChatsPage({ onChatOpenChange }: ChatsPageProps) {
     const content = messageInput.trim();
     setMessageInput("");
     setSending(true);
+
+    // Optimistic message — shown immediately
+    const tempId = BigInt(-Date.now());
+    const tempMsg: BackendMessage = {
+      id: tempId,
+      channelId: activeGroup.id,
+      authorPrincipal: { toText: () => myPrincipal },
+      authorName: "You",
+      content,
+      timestamp: BigInt(Date.now()) * BigInt(1_000_000),
+    };
+    setBackendMessages((prev) => [...prev, tempMsg]);
+
     try {
       await actor.postMessage(activeGroup.id, content);
-      await loadMessages(activeGroup.id);
+      // Replace optimistic message with real backend state
+      await loadMessages(activeGroup.id, true);
     } catch {
+      // Roll back optimistic message and restore input
+      setBackendMessages((prev) => prev.filter((m) => m.id !== tempId));
       setMessageInput(content);
     } finally {
       setSending(false);
@@ -180,13 +216,23 @@ export default function ChatsPage({ onChatOpenChange }: ChatsPageProps) {
     if (!actor || !isAdmin) return;
     const idStr = msgId.toString();
     setDeletingMsgId(idStr);
+    // Optimistic removal
+    setBackendMessages((prev) => prev.filter((m) => m.id !== msgId));
+    setReactions((prev) => {
+      const next = new Map(prev);
+      next.delete(idStr);
+      return next;
+    });
     try {
       await actor.adminDeleteMessage(msgId);
-      setBackendMessages((prev) => prev.filter((m) => m.id !== msgId));
+      // Confirm state with a silent backend reload
+      if (activeGroup) await loadMessages(activeGroup.id, true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("Failed to delete message:", msg);
       toast.error(`Delete failed: ${msg}`);
+      // Reload to restore the message that failed to delete
+      if (activeGroup) await loadMessages(activeGroup.id, true);
     } finally {
       setDeletingMsgId(null);
     }
@@ -349,11 +395,12 @@ export default function ChatsPage({ onChatOpenChange }: ChatsPageProps) {
               const msgIdStr = msg.id.toString();
               const msgReactions = reactions.get(msgIdStr) ?? [];
               const isPickerOpen = openPickerFor === msgIdStr;
+              const isTemp = msg.id < BigInt(0);
 
               return (
                 <div
                   key={msgIdStr}
-                  className={`flex items-end gap-2 mb-2 ${isOwn ? "flex-row-reverse" : "flex-row"}`}
+                  className={`flex items-end gap-2 mb-2 ${isOwn ? "flex-row-reverse" : "flex-row"} ${isTemp ? "opacity-60" : ""}`}
                 >
                   {/* Avatar - clickable for other users */}
                   {!isOwn && (
@@ -404,7 +451,7 @@ export default function ChatsPage({ onChatOpenChange }: ChatsPageProps) {
                       </div>
 
                       {/* Admin delete button — shown for ALL messages (including own) when isAdmin */}
-                      {isAdmin && (
+                      {isAdmin && !isTemp && (
                         <button
                           type="button"
                           data-ocid="chats.message.delete_button"
@@ -419,22 +466,24 @@ export default function ChatsPage({ onChatOpenChange }: ChatsPageProps) {
                           <Trash2 className="w-2.5 h-2.5 text-white" />
                         </button>
                       )}
-                      <button
-                        type="button"
-                        data-ocid="chats.message.toggle"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenPickerFor(isPickerOpen ? null : msgIdStr);
-                        }}
-                        className={`absolute -bottom-2 ${
-                          isOwn ? "-left-6" : "-right-6"
-                        } w-5 h-5 rounded-full flex items-center justify-center text-[10px] transition-opacity bg-muted border border-border shadow-sm
+                      {!isTemp && (
+                        <button
+                          type="button"
+                          data-ocid="chats.message.toggle"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenPickerFor(isPickerOpen ? null : msgIdStr);
+                          }}
+                          className={`absolute -bottom-2 ${
+                            isOwn ? "-left-6" : "-right-6"
+                          } w-5 h-5 rounded-full flex items-center justify-center text-[10px] transition-opacity bg-muted border border-border shadow-sm
                           opacity-0 group-hover:opacity-100 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100`}
-                        style={{ opacity: undefined }} // allow className to control
-                        aria-label="Add reaction"
-                      >
-                        😊
-                      </button>
+                          style={{ opacity: undefined }} // allow className to control
+                          aria-label="Add reaction"
+                        >
+                          😊
+                        </button>
+                      )}
 
                       {/* Emoji picker popover */}
                       <AnimatePresence>
