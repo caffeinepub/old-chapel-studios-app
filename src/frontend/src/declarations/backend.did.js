@@ -67,6 +67,13 @@ export const UserProfile = IDL.Record({
   'avatarUrl' : IDL.Opt(IDL.Text),
   'phone' : IDL.Opt(IDL.Text),
 });
+export const Band = IDL.Record({
+  'id' : IDL.Nat,
+  'members' : IDL.Vec(IDL.Principal),
+  'leaderId' : IDL.Principal,
+  'name' : IDL.Text,
+  'createdAt' : IDL.Int,
+});
 export const CommunityPost = IDL.Record({
   'id' : IDL.Nat,
   'title' : IDL.Text,
@@ -105,6 +112,16 @@ export const FreeTimeSlot = IDL.Record({
   'dayLabel' : IDL.Text,
   'timeEnd' : IDL.Text,
 });
+export const Gig = IDL.Record({
+  'id' : IDL.Nat,
+  'venue' : IDL.Text,
+  'date' : IDL.Text,
+  'name' : IDL.Text,
+  'createdAt' : IDL.Int,
+  'time' : IDL.Text,
+  'bandId' : IDL.Nat,
+  'notes' : IDL.Text,
+});
 export const InviteCode = IDL.Record({
   'created' : Time,
   'code' : IDL.Text,
@@ -117,6 +134,13 @@ export const Message = IDL.Record({
   'authorName' : IDL.Text,
   'timestamp' : IDL.Int,
   'authorPrincipal' : IDL.Principal,
+});
+export const BandInvite = IDL.Record({
+  'inviterName' : IDL.Text,
+  'inviteeId' : IDL.Principal,
+  'bandId' : IDL.Nat,
+  'bandName' : IDL.Text,
+  'sentAt' : IDL.Int,
 });
 export const PostComment = IDL.Record({
   'id' : IDL.Nat,
@@ -132,6 +156,15 @@ export const RoomSlot = IDL.Record({
   'room' : IDL.Text,
   'available' : IDL.Bool,
   'hourEnd' : IDL.Nat,
+});
+export const BandTask = IDL.Record({
+  'id' : IDL.Nat,
+  'title' : IDL.Text,
+  'createdAt' : IDL.Int,
+  'completed' : IDL.Bool,
+  'creatorId' : IDL.Principal,
+  'bandId' : IDL.Nat,
+  'description' : IDL.Text,
 });
 export const ApprovalStatus = IDL.Variant({
   'pending' : IDL.Null,
@@ -171,7 +204,13 @@ export const idlService = IDL.Service({
     ),
   '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'acceptInvite' : IDL.Func([], [], []),
   'addFreeTimeSlot' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+      [IDL.Nat],
+      [],
+    ),
+  'addGig' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
       [IDL.Nat],
       [],
@@ -179,10 +218,13 @@ export const idlService = IDL.Service({
   'addPostComment' : IDL.Func([IDL.Nat, IDL.Text], [IDL.Nat], []),
   'addPostReaction' : IDL.Func([IDL.Nat, IDL.Text], [], []),
   'addReaction' : IDL.Func([IDL.Nat, IDL.Text], [], []),
+  'addTask' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat], []),
   'adminDeleteMessage' : IDL.Func([IDL.Nat], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'banUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
   'checkIfCallerIsAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'completeTask' : IDL.Func([IDL.Nat], [], []),
+  'createBand' : IDL.Func([IDL.Text], [IDL.Nat], []),
   'createCommunityPost' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Vec(IDL.Text), IDL.Bool],
       [IDL.Nat],
@@ -198,12 +240,21 @@ export const idlService = IDL.Service({
       [IDL.Nat],
       [],
     ),
+  'declineInvite' : IDL.Func([], [], []),
   'deleteCommunityPost' : IDL.Func([IDL.Nat], [], []),
   'deleteEvent' : IDL.Func([IDL.Nat], [], []),
   'deleteFileRecord' : IDL.Func([IDL.Nat], [], []),
+  'deleteGig' : IDL.Func([IDL.Nat], [], []),
   'deleteMessage' : IDL.Func([IDL.Nat], [], []),
   'deletePoll' : IDL.Func([IDL.Nat], [], []),
   'deletePostComment' : IDL.Func([IDL.Nat], [], []),
+  'deleteTask' : IDL.Func([IDL.Nat], [], []),
+  'disbandBand' : IDL.Func([], [], []),
+  'editGig' : IDL.Func(
+      [IDL.Nat, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+      [],
+      [],
+    ),
   'generateInviteCode' : IDL.Func([], [IDL.Text], []),
   'getAllPolls' : IDL.Func([], [IDL.Vec(Poll)], ['query']),
   'getAllRSVPs' : IDL.Func([], [IDL.Vec(RSVP)], ['query']),
@@ -212,14 +263,22 @@ export const idlService = IDL.Service({
       [IDL.Vec(IDL.Tuple(IDL.Principal, UserProfile))],
       ['query'],
     ),
+  'getBand' : IDL.Func([], [IDL.Opt(Band)], ['query']),
+  'getBandMembers' : IDL.Func(
+      [],
+      [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Text))],
+      ['query'],
+    ),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getCommunityPosts' : IDL.Func([], [IDL.Vec(CommunityPost)], ['query']),
   'getEvents' : IDL.Func([], [IDL.Vec(StudioEvent)], ['query']),
   'getFileRecords' : IDL.Func([], [IDL.Vec(FileRecord)], ['query']),
   'getFreeTimeSlots' : IDL.Func([], [IDL.Vec(FreeTimeSlot)], ['query']),
+  'getGigs' : IDL.Func([], [IDL.Vec(Gig)], ['query']),
   'getInviteCodes' : IDL.Func([], [IDL.Vec(InviteCode)], ['query']),
   'getMessages' : IDL.Func([IDL.Text], [IDL.Vec(Message)], ['query']),
+  'getPendingInvite' : IDL.Func([], [IDL.Opt(BandInvite)], ['query']),
   'getPoll' : IDL.Func([IDL.Nat], [IDL.Opt(Poll)], ['query']),
   'getPollResults' : IDL.Func(
       [IDL.Nat],
@@ -246,6 +305,7 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'getRoomAvailability' : IDL.Func([], [IDL.Vec(RoomSlot)], ['query']),
+  'getTasks' : IDL.Func([], [IDL.Vec(BandTask)], ['query']),
   'getUserProfile' : IDL.Func(
       [IDL.Principal],
       [IDL.Opt(UserProfile)],
@@ -253,6 +313,7 @@ export const idlService = IDL.Service({
     ),
   'getUserVotes' : IDL.Func([IDL.Nat], [IDL.Vec(IDL.Nat)], ['query']),
   'hasVotedInPoll' : IDL.Func([IDL.Nat], [IDL.Bool], ['query']),
+  'inviteMember' : IDL.Func([IDL.Principal], [], []),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'isCallerApproved' : IDL.Func([], [IDL.Bool], ['query']),
   'isCallerRegistered' : IDL.Func([], [IDL.Bool], ['query']),
@@ -260,13 +321,20 @@ export const idlService = IDL.Service({
   'postMessage' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat], []),
   'register' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [], []),
   'removeFreeTimeSlot' : IDL.Func([IDL.Nat], [], []),
+  'removeMember' : IDL.Func([IDL.Principal], [], []),
   'removeUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
+  'renameBand' : IDL.Func([IDL.Text], [], []),
   'requestApproval' : IDL.Func([], [], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'saveFileRecord' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
       [IDL.Nat],
       [],
+    ),
+  'searchMembers' : IDL.Func(
+      [IDL.Text],
+      [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Text))],
+      ['query'],
     ),
   'setApproval' : IDL.Func([IDL.Principal, ApprovalStatus], [], []),
   'setRoomAvailability' : IDL.Func([IDL.Vec(RoomSlot)], [], []),
@@ -334,6 +402,13 @@ export const idlFactory = ({ IDL }) => {
     'avatarUrl' : IDL.Opt(IDL.Text),
     'phone' : IDL.Opt(IDL.Text),
   });
+  const Band = IDL.Record({
+    'id' : IDL.Nat,
+    'members' : IDL.Vec(IDL.Principal),
+    'leaderId' : IDL.Principal,
+    'name' : IDL.Text,
+    'createdAt' : IDL.Int,
+  });
   const CommunityPost = IDL.Record({
     'id' : IDL.Nat,
     'title' : IDL.Text,
@@ -372,6 +447,16 @@ export const idlFactory = ({ IDL }) => {
     'dayLabel' : IDL.Text,
     'timeEnd' : IDL.Text,
   });
+  const Gig = IDL.Record({
+    'id' : IDL.Nat,
+    'venue' : IDL.Text,
+    'date' : IDL.Text,
+    'name' : IDL.Text,
+    'createdAt' : IDL.Int,
+    'time' : IDL.Text,
+    'bandId' : IDL.Nat,
+    'notes' : IDL.Text,
+  });
   const InviteCode = IDL.Record({
     'created' : Time,
     'code' : IDL.Text,
@@ -384,6 +469,13 @@ export const idlFactory = ({ IDL }) => {
     'authorName' : IDL.Text,
     'timestamp' : IDL.Int,
     'authorPrincipal' : IDL.Principal,
+  });
+  const BandInvite = IDL.Record({
+    'inviterName' : IDL.Text,
+    'inviteeId' : IDL.Principal,
+    'bandId' : IDL.Nat,
+    'bandName' : IDL.Text,
+    'sentAt' : IDL.Int,
   });
   const PostComment = IDL.Record({
     'id' : IDL.Nat,
@@ -399,6 +491,15 @@ export const idlFactory = ({ IDL }) => {
     'room' : IDL.Text,
     'available' : IDL.Bool,
     'hourEnd' : IDL.Nat,
+  });
+  const BandTask = IDL.Record({
+    'id' : IDL.Nat,
+    'title' : IDL.Text,
+    'createdAt' : IDL.Int,
+    'completed' : IDL.Bool,
+    'creatorId' : IDL.Principal,
+    'bandId' : IDL.Nat,
+    'description' : IDL.Text,
   });
   const ApprovalStatus = IDL.Variant({
     'pending' : IDL.Null,
@@ -438,7 +539,13 @@ export const idlFactory = ({ IDL }) => {
       ),
     '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'acceptInvite' : IDL.Func([], [], []),
     'addFreeTimeSlot' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+        [IDL.Nat],
+        [],
+      ),
+    'addGig' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
         [IDL.Nat],
         [],
@@ -446,10 +553,13 @@ export const idlFactory = ({ IDL }) => {
     'addPostComment' : IDL.Func([IDL.Nat, IDL.Text], [IDL.Nat], []),
     'addPostReaction' : IDL.Func([IDL.Nat, IDL.Text], [], []),
     'addReaction' : IDL.Func([IDL.Nat, IDL.Text], [], []),
+    'addTask' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat], []),
     'adminDeleteMessage' : IDL.Func([IDL.Nat], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'banUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'checkIfCallerIsAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'completeTask' : IDL.Func([IDL.Nat], [], []),
+    'createBand' : IDL.Func([IDL.Text], [IDL.Nat], []),
     'createCommunityPost' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Vec(IDL.Text), IDL.Bool],
         [IDL.Nat],
@@ -465,12 +575,21 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Nat],
         [],
       ),
+    'declineInvite' : IDL.Func([], [], []),
     'deleteCommunityPost' : IDL.Func([IDL.Nat], [], []),
     'deleteEvent' : IDL.Func([IDL.Nat], [], []),
     'deleteFileRecord' : IDL.Func([IDL.Nat], [], []),
+    'deleteGig' : IDL.Func([IDL.Nat], [], []),
     'deleteMessage' : IDL.Func([IDL.Nat], [], []),
     'deletePoll' : IDL.Func([IDL.Nat], [], []),
     'deletePostComment' : IDL.Func([IDL.Nat], [], []),
+    'deleteTask' : IDL.Func([IDL.Nat], [], []),
+    'disbandBand' : IDL.Func([], [], []),
+    'editGig' : IDL.Func(
+        [IDL.Nat, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+        [],
+        [],
+      ),
     'generateInviteCode' : IDL.Func([], [IDL.Text], []),
     'getAllPolls' : IDL.Func([], [IDL.Vec(Poll)], ['query']),
     'getAllRSVPs' : IDL.Func([], [IDL.Vec(RSVP)], ['query']),
@@ -479,14 +598,22 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(IDL.Tuple(IDL.Principal, UserProfile))],
         ['query'],
       ),
+    'getBand' : IDL.Func([], [IDL.Opt(Band)], ['query']),
+    'getBandMembers' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Text))],
+        ['query'],
+      ),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getCommunityPosts' : IDL.Func([], [IDL.Vec(CommunityPost)], ['query']),
     'getEvents' : IDL.Func([], [IDL.Vec(StudioEvent)], ['query']),
     'getFileRecords' : IDL.Func([], [IDL.Vec(FileRecord)], ['query']),
     'getFreeTimeSlots' : IDL.Func([], [IDL.Vec(FreeTimeSlot)], ['query']),
+    'getGigs' : IDL.Func([], [IDL.Vec(Gig)], ['query']),
     'getInviteCodes' : IDL.Func([], [IDL.Vec(InviteCode)], ['query']),
     'getMessages' : IDL.Func([IDL.Text], [IDL.Vec(Message)], ['query']),
+    'getPendingInvite' : IDL.Func([], [IDL.Opt(BandInvite)], ['query']),
     'getPoll' : IDL.Func([IDL.Nat], [IDL.Opt(Poll)], ['query']),
     'getPollResults' : IDL.Func(
         [IDL.Nat],
@@ -513,6 +640,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getRoomAvailability' : IDL.Func([], [IDL.Vec(RoomSlot)], ['query']),
+    'getTasks' : IDL.Func([], [IDL.Vec(BandTask)], ['query']),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UserProfile)],
@@ -520,6 +648,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getUserVotes' : IDL.Func([IDL.Nat], [IDL.Vec(IDL.Nat)], ['query']),
     'hasVotedInPoll' : IDL.Func([IDL.Nat], [IDL.Bool], ['query']),
+    'inviteMember' : IDL.Func([IDL.Principal], [], []),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'isCallerApproved' : IDL.Func([], [IDL.Bool], ['query']),
     'isCallerRegistered' : IDL.Func([], [IDL.Bool], ['query']),
@@ -527,13 +656,20 @@ export const idlFactory = ({ IDL }) => {
     'postMessage' : IDL.Func([IDL.Text, IDL.Text], [IDL.Nat], []),
     'register' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [], []),
     'removeFreeTimeSlot' : IDL.Func([IDL.Nat], [], []),
+    'removeMember' : IDL.Func([IDL.Principal], [], []),
     'removeUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
+    'renameBand' : IDL.Func([IDL.Text], [], []),
     'requestApproval' : IDL.Func([], [], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'saveFileRecord' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Text],
         [IDL.Nat],
         [],
+      ),
+    'searchMembers' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Text))],
+        ['query'],
       ),
     'setApproval' : IDL.Func([IDL.Principal, ApprovalStatus], [], []),
     'setRoomAvailability' : IDL.Func([IDL.Vec(RoomSlot)], [], []),

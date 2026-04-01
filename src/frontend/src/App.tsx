@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { useActor } from "@/hooks/useActor";
 import { useInternetIdentity } from "@/hooks/useInternetIdentity";
 import AvailabilityPage from "@/pages/AvailabilityPage";
+import BandPage from "@/pages/BandPage";
 import CalendarPage from "@/pages/CalendarPage";
 import ChatsPage from "@/pages/ChatsPage";
 import FilesPage from "@/pages/FilesPage";
@@ -319,6 +320,17 @@ export default function App() {
                     transition={{ duration: 0.18 }}
                   >
                     <PollsPage />
+                  </motion.div>
+                )}
+                {activeTab === "band" && (
+                  <motion.div
+                    key="band"
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 8 }}
+                    transition={{ duration: 0.18 }}
+                  >
+                    <BandPage />
                   </motion.div>
                 )}
                 {activeTab === "settings" && (

@@ -17,6 +17,29 @@ export type AppUserRole = { 'client' : null } |
 export type ApprovalStatus = { 'pending' : null } |
   { 'approved' : null } |
   { 'rejected' : null };
+export interface Band {
+  'id' : bigint,
+  'members' : Array<Principal>,
+  'leaderId' : Principal,
+  'name' : string,
+  'createdAt' : bigint,
+}
+export interface BandInvite {
+  'inviterName' : string,
+  'inviteeId' : Principal,
+  'bandId' : bigint,
+  'bandName' : string,
+  'sentAt' : bigint,
+}
+export interface BandTask {
+  'id' : bigint,
+  'title' : string,
+  'createdAt' : bigint,
+  'completed' : boolean,
+  'creatorId' : Principal,
+  'bandId' : bigint,
+  'description' : string,
+}
 export interface CommunityPost {
   'id' : bigint,
   'title' : string,
@@ -45,6 +68,16 @@ export interface FreeTimeSlot {
   'room' : string,
   'dayLabel' : string,
   'timeEnd' : string,
+}
+export interface Gig {
+  'id' : bigint,
+  'venue' : string,
+  'date' : string,
+  'name' : string,
+  'createdAt' : bigint,
+  'time' : string,
+  'bandId' : bigint,
+  'notes' : string,
 }
 export interface InviteCode {
   'created' : Time,
@@ -150,17 +183,22 @@ export interface _SERVICE {
   >,
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'acceptInvite' : ActorMethod<[], undefined>,
   'addFreeTimeSlot' : ActorMethod<
     [string, string, string, string, string],
     bigint
   >,
+  'addGig' : ActorMethod<[string, string, string, string, string], bigint>,
   'addPostComment' : ActorMethod<[bigint, string], bigint>,
   'addPostReaction' : ActorMethod<[bigint, string], undefined>,
   'addReaction' : ActorMethod<[bigint, string], undefined>,
+  'addTask' : ActorMethod<[string, string], bigint>,
   'adminDeleteMessage' : ActorMethod<[bigint], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'banUser' : ActorMethod<[Principal], string>,
   'checkIfCallerIsAdmin' : ActorMethod<[], boolean>,
+  'completeTask' : ActorMethod<[bigint], undefined>,
+  'createBand' : ActorMethod<[string], bigint>,
   'createCommunityPost' : ActorMethod<
     [string, string, Array<string>, boolean],
     bigint
@@ -170,24 +208,36 @@ export interface _SERVICE {
     bigint
   >,
   'createPoll' : ActorMethod<[string, Array<string>, boolean, boolean], bigint>,
+  'declineInvite' : ActorMethod<[], undefined>,
   'deleteCommunityPost' : ActorMethod<[bigint], undefined>,
   'deleteEvent' : ActorMethod<[bigint], undefined>,
   'deleteFileRecord' : ActorMethod<[bigint], undefined>,
+  'deleteGig' : ActorMethod<[bigint], undefined>,
   'deleteMessage' : ActorMethod<[bigint], undefined>,
   'deletePoll' : ActorMethod<[bigint], undefined>,
   'deletePostComment' : ActorMethod<[bigint], undefined>,
+  'deleteTask' : ActorMethod<[bigint], undefined>,
+  'disbandBand' : ActorMethod<[], undefined>,
+  'editGig' : ActorMethod<
+    [bigint, string, string, string, string, string],
+    undefined
+  >,
   'generateInviteCode' : ActorMethod<[], string>,
   'getAllPolls' : ActorMethod<[], Array<Poll>>,
   'getAllRSVPs' : ActorMethod<[], Array<RSVP>>,
   'getAllUsers' : ActorMethod<[], Array<[Principal, UserProfile]>>,
+  'getBand' : ActorMethod<[], [] | [Band]>,
+  'getBandMembers' : ActorMethod<[], Array<[Principal, string]>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getCommunityPosts' : ActorMethod<[], Array<CommunityPost>>,
   'getEvents' : ActorMethod<[], Array<StudioEvent>>,
   'getFileRecords' : ActorMethod<[], Array<FileRecord>>,
   'getFreeTimeSlots' : ActorMethod<[], Array<FreeTimeSlot>>,
+  'getGigs' : ActorMethod<[], Array<Gig>>,
   'getInviteCodes' : ActorMethod<[], Array<InviteCode>>,
   'getMessages' : ActorMethod<[string], Array<Message>>,
+  'getPendingInvite' : ActorMethod<[], [] | [BandInvite]>,
   'getPoll' : ActorMethod<[bigint], [] | [Poll]>,
   'getPollResults' : ActorMethod<
     [bigint],
@@ -203,9 +253,11 @@ export interface _SERVICE {
   'getPostReactions' : ActorMethod<[bigint], Array<[string, Array<Principal>]>>,
   'getReactions' : ActorMethod<[bigint], Array<[string, Array<Principal>]>>,
   'getRoomAvailability' : ActorMethod<[], Array<RoomSlot>>,
+  'getTasks' : ActorMethod<[], Array<BandTask>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getUserVotes' : ActorMethod<[bigint], Array<bigint>>,
   'hasVotedInPoll' : ActorMethod<[bigint], boolean>,
+  'inviteMember' : ActorMethod<[Principal], undefined>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'isCallerApproved' : ActorMethod<[], boolean>,
   'isCallerRegistered' : ActorMethod<[], boolean>,
@@ -213,13 +265,16 @@ export interface _SERVICE {
   'postMessage' : ActorMethod<[string, string], bigint>,
   'register' : ActorMethod<[string, [] | [string]], undefined>,
   'removeFreeTimeSlot' : ActorMethod<[bigint], undefined>,
+  'removeMember' : ActorMethod<[Principal], undefined>,
   'removeUser' : ActorMethod<[Principal], string>,
+  'renameBand' : ActorMethod<[string], undefined>,
   'requestApproval' : ActorMethod<[], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'saveFileRecord' : ActorMethod<
     [string, string, string, string, string, string, string],
     bigint
   >,
+  'searchMembers' : ActorMethod<[string], Array<[Principal, string]>>,
   'setApproval' : ActorMethod<[Principal, ApprovalStatus], undefined>,
   'setRoomAvailability' : ActorMethod<[Array<RoomSlot>], undefined>,
   'submitRSVP' : ActorMethod<[string, boolean, string], undefined>,

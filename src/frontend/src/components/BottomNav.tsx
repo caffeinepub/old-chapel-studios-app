@@ -5,6 +5,7 @@ import {
   FolderOpen,
   Home,
   MessageSquare,
+  Music,
   Settings,
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -16,6 +17,7 @@ export type TabId =
   | "chats"
   | "files"
   | "polls"
+  | "band"
   | "settings";
 
 interface BottomNavProps {
@@ -49,6 +51,7 @@ const TABS: {
   { id: "chats", label: "Chats", icon: MessageSquare, ocid: "nav.chats.tab" },
   { id: "files", label: "Files", icon: FolderOpen, ocid: "nav.files.tab" },
   { id: "polls", label: "Polls", icon: BarChart3, ocid: "nav.polls.tab" },
+  { id: "band", label: "Band", icon: Music, ocid: "nav.band.tab" },
   {
     id: "settings",
     label: "Settings",

@@ -12,9 +12,9 @@ import MixinAuthorization "authorization/MixinAuthorization";
 import MixinStorage "blob-storage/Mixin";
 import InviteLinksModule "invite-links/invite-links-module";
 import UserApproval "user-approval/approval";
-import Migration "migration";
 
-(with migration = Migration.run)
+import Iter "mo:core/Iter";
+
 actor {
   // Constant for admin principal
   let ADMIN_PRINCIPAL : Text = "ulyt5-slv4a-xrfbx-seije-74i6r-4nkkh-ydqng-hgdb2-r3tlc-tkvp4-hae";
@@ -997,5 +997,520 @@ actor {
         postCommentIndex.add(comment.postId, updatedIndex);
       };
     };
+  };
+
+  // ========== Band Feature ==========
+
+  // Band Data Types
+  public type Band = {
+    id : Nat;
+    name : Text;
+    leaderId : Principal;
+    members : [Principal];
+    createdAt : Int;
+  };
+
+  public type BandInvite = {
+    inviteeId : Principal;
+    bandId : Nat;
+    inviterName : Text;
+    bandName : Text;
+    sentAt : Int;
+  };
+
+  public type Gig = {
+    id : Nat;
+    bandId : Nat;
+    name : Text;
+    date : Text;
+    time : Text;
+    venue : Text;
+    notes : Text;
+    createdAt : Int;
+  };
+
+  public type BandTask = {
+    id : Nat;
+    bandId : Nat;
+    title : Text;
+    description : Text;
+    completed : Bool;
+    creatorId : Principal;
+    createdAt : Int;
+  };
+
+  // Stable band data structures
+  stable var nextBandId : Nat = 0;
+  stable var nextGigId : Nat = 0;
+  stable var nextTaskId : Nat = 0;
+  stable var bands = Map.empty<Nat, Band>();
+  stable var bandInvites = Map.empty<Principal, BandInvite>();
+  stable var bandGigs = Map.empty<Nat, Gig>();
+  stable var bandTasks = Map.empty<Nat, BandTask>();
+
+  // Create Band
+  public shared ({ caller }) func createBand(name : Text) : async Nat {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can create bands");
+    };
+    if (not isUserActiveAndRegistered(caller)) {
+      Runtime.trap("Unauthorized: Only active and approved users can create bands");
+    };
+
+    // Check if caller already has a band
+    let hasExistingBand = bands.values().any(
+      func(band) { band.leaderId == caller or band.members.any(func(m) { m == caller }) }
+    );
+    if (hasExistingBand) {
+      Runtime.trap("You are already part of a band");
+    };
+
+    let bandId = nextBandId;
+    nextBandId += 1;
+
+    let newBand : Band = {
+      id = bandId;
+      name;
+      leaderId = caller;
+      members = [caller];
+      createdAt = Time.now();
+    };
+    bands.add(bandId, newBand);
+    bandId;
+  };
+
+  // Get current user's band
+  public query ({ caller }) func getBand() : async ?Band {
+    if (caller.isAnonymous()) { return null };
+    bands.values().find(
+      func(band) { band.leaderId == caller or band.members.any(func(m) { m == caller }) }
+    );
+  };
+
+  // Disband band (leader only)
+  public shared ({ caller }) func disbandBand() : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can disband bands");
+    };
+
+    let band = switch (bands.values().find(func(b) { b.leaderId == caller })) {
+      case (null) { Runtime.trap("You are not the leader of any band") };
+      case (?b) { b };
+    };
+
+    // Remove band
+    bands.remove(band.id);
+
+    // Remove related gigs and tasks
+    let bandId = band.id;
+    let filteredGigs = bandGigs.filter(func(_, gig) { gig.bandId != bandId });
+    bandGigs := filteredGigs;
+
+    let filteredTasks = bandTasks.filter(func(_, task) { task.bandId != bandId });
+    bandTasks := filteredTasks;
+
+    // Remove all invites for this band
+    let filteredInvites = bandInvites.filter(func(_, invite) { invite.bandId != bandId });
+    bandInvites := filteredInvites;
+  };
+
+  // Invite new member (leader only)
+  public shared ({ caller }) func inviteMember(inviteePrincipal : Principal) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can invite members");
+    };
+
+    let band = switch (bands.values().find(func(b) { b.leaderId == caller })) {
+      case (null) { Runtime.trap("You are not the leader of any band") };
+      case (?b) { b };
+    };
+
+    // Check if invitee is already in band
+    if (band.members.any(func(m) { m == inviteePrincipal })) {
+      Runtime.trap("User is already a member of the band");
+    };
+
+    // Check if invitee has pending invite
+    if (bandInvites.containsKey(inviteePrincipal)) {
+      Runtime.trap("User already has a pending invite");
+    };
+
+    // Check if invitee is registered and not banned
+    switch (userProfiles.get(inviteePrincipal)) {
+      case (null) {
+        Runtime.trap("User is not registered");
+      };
+      case (?profile) {
+        switch (profile.status) {
+          case (#banned) { Runtime.trap("User is banned") };
+          case (_) {};
+        };
+      };
+    };
+
+    // Store invite
+    let invite : BandInvite = {
+      inviteeId = inviteePrincipal;
+      bandId = band.id;
+      inviterName = band.name;
+      bandName = band.name;
+      sentAt = Time.now();
+    };
+    bandInvites.add(inviteePrincipal, invite);
+  };
+
+  // Get pending invite for caller
+  public query ({ caller }) func getPendingInvite() : async ?BandInvite {
+    if (caller.isAnonymous()) { return null };
+    bandInvites.get(caller);
+  };
+
+  // Accept invite and join band
+  public shared ({ caller }) func acceptInvite() : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can accept invites");
+    };
+
+    // Verify invite exists
+    let invite = switch (bandInvites.get(caller)) {
+      case (null) { Runtime.trap("No pending invite found") };
+      case (?inv) { inv };
+    };
+
+    // Ensure band still exists
+    let band = switch (bands.get(invite.bandId)) {
+      case (null) { Runtime.trap("Band does not exist") };
+      case (?b) { b };
+    };
+
+    // Add member to band
+    let updatedBand : Band = {
+      id = band.id;
+      name = band.name;
+      leaderId = band.leaderId;
+      members = band.members.concat([caller]);
+      createdAt = band.createdAt;
+    };
+    bands.add(band.id, updatedBand);
+    bandInvites.remove(caller); // Remove the invite
+  };
+
+  // Decline invite (caller's pending)
+  public shared ({ caller }) func declineInvite() : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can decline invites");
+    };
+    if (not bandInvites.containsKey(caller)) {
+      Runtime.trap("No pending invite found");
+    };
+    bandInvites.remove(caller);
+  };
+
+  // Remove member from band (leader does operation)
+  public shared ({ caller }) func removeMember(member : Principal) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can remove members");
+    };
+    let band = switch (bands.values().find(func(b) { b.leaderId == caller })) {
+      case (null) { Runtime.trap("You are not the leader of any band") };
+      case (?b) { b };
+    };
+
+    // Cannot remove leader through this method
+    if (member == band.leaderId) {
+      Runtime.trap("Cannot remove band leader. Only band members can be removed");
+    };
+
+    // Verify member exists
+    if (not band.members.any(func(m) { m == member })) {
+      Runtime.trap("User is not a member of the band");
+    };
+
+    // Remove member from band
+    let updatedMembers = band.members.filter(func(m) { m != member });
+    let updatedBand : Band = {
+      id = band.id;
+      name = band.name;
+      leaderId = band.leaderId;
+      members = updatedMembers;
+      createdAt = band.createdAt;
+    };
+    bands.add(band.id, updatedBand);
+  };
+
+  // Search registered users by display name
+  public query ({ caller }) func searchMembers(searchTerm : Text) : async [(Principal, Text)] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can search members");
+    };
+    if (searchTerm.size() == 0) { return [] };
+    userProfiles.entries().filter(
+      func((p, profile)) { profile.displayName.toLower().contains(#text(searchTerm.toLower())) }
+    ).map(
+      func((p, profile)) { (p, profile.displayName) }
+    ).toArray();
+  };
+
+  // Add gig (band member only)
+  public shared ({ caller }) func addGig(
+    name : Text,
+    date : Text,
+    time : Text,
+    venue : Text,
+    notes : Text,
+  ) : async Nat {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can add gigs");
+    };
+
+    let band = switch (bands.values().find(func(b) { b.leaderId == caller or b.members.any(func(m) { m == caller }) })) {
+      case (null) { Runtime.trap("You are not a member of any band") };
+      case (?b) { b };
+    };
+
+    let gigId = nextGigId;
+    nextGigId += 1;
+
+    let newGig : Gig = {
+      id = gigId;
+      bandId = band.id;
+      name;
+      date;
+      time;
+      venue;
+      notes;
+      createdAt = Time.now();
+    };
+
+    bandGigs.add(gigId, newGig);
+    gigId;
+  };
+
+  // Edit gig (only by band leader)
+  public shared ({ caller }) func editGig(
+    gigId : Nat,
+    name : Text,
+    date : Text,
+    time : Text,
+    venue : Text,
+    notes : Text,
+  ) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can edit gigs");
+    };
+
+    let original = switch (bandGigs.get(gigId)) {
+      case (null) { Runtime.trap("Gig not found") };
+      case (?g) { g };
+    };
+
+    // Only band leader can edit
+    let band = switch (bands.get(original.bandId)) {
+      case (null) { Runtime.trap("Band not found") };
+      case (?b) { b };
+    };
+
+    if (band.leaderId != caller) {
+      Runtime.trap("Only the band leader can edit gigs");
+    };
+
+    let updated : Gig = {
+      id = gigId;
+      bandId = original.bandId;
+      name;
+      date;
+      time;
+      venue;
+      notes;
+      createdAt = Time.now();
+    };
+    bandGigs.add(gigId, updated);
+  };
+
+  // Delete gig (band leader only)
+  public shared ({ caller }) func deleteGig(gigId : Nat) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can delete gigs");
+    };
+
+    let gig = switch (bandGigs.get(gigId)) {
+      case (null) { Runtime.trap("Gig not found") };
+      case (?g) { g };
+    };
+
+    let band = switch (bands.get(gig.bandId)) {
+      case (null) { Runtime.trap("Band not found") };
+      case (?b) { b };
+    };
+
+    // Only band leader can delete
+    if (band.leaderId != caller) {
+      Runtime.trap("Only the band leader can delete gigs");
+    };
+
+    bandGigs.remove(gigId);
+  };
+
+  // Get all gigs for current user's band
+  public query ({ caller }) func getGigs() : async [Gig] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can view gigs");
+    };
+    let band = switch (bands.values().find(func(b) { b.leaderId == caller or b.members.any(func(m) { m == caller }) })) {
+      case (null) { Runtime.trap("You are not a member of any band") };
+      case (?b) { b };
+    };
+    bandGigs.values().filter(
+      func(gig) { gig.bandId == band.id }
+    ).toArray();
+  };
+
+  // Add task (band member, with creator principal)
+  public shared ({ caller }) func addTask(title : Text, description : Text) : async Nat {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can add tasks");
+    };
+
+    let band = switch (bands.values().find(func(b) { b.leaderId == caller or b.members.any(func(m) { m == caller }) })) {
+      case (null) { Runtime.trap("You are not a member of any band") };
+      case (?b) { b };
+    };
+
+    let taskId = nextTaskId;
+    nextTaskId += 1;
+
+    let newTask : BandTask = {
+      id = taskId;
+      bandId = band.id;
+      title;
+      description;
+      completed = false;
+      creatorId = caller;
+      createdAt = Time.now();
+    };
+
+    bandTasks.add(taskId, newTask);
+    taskId;
+  };
+
+  // Toggle task completion (band member only)
+  public shared ({ caller }) func completeTask(taskId : Nat) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can complete tasks");
+    };
+
+    let task = switch (bandTasks.get(taskId)) {
+      case (null) { Runtime.trap("Task not found") };
+      case (?t) { t };
+    };
+
+    // Get band for creator
+    let band = switch (bands.get(task.bandId)) {
+      case (null) { Runtime.trap("Band not found") };
+      case (?b) { b };
+    };
+
+    if (not (band.leaderId == caller or band.members.any(func(m) { m == caller }))) {
+      Runtime.trap("Only band members can complete tasks");
+    };
+
+    // Update task completion status
+    let updated : BandTask = {
+      id = task.id;
+      bandId = task.bandId;
+      title = task.title;
+      description = task.description;
+      completed = not task.completed;
+      creatorId = task.creatorId;
+      createdAt = Time.now();
+    };
+
+    bandTasks.add(task.id, updated);
+  };
+
+  // Delete task (band leader can delete any; member can delete own)
+  public shared ({ caller }) func deleteTask(taskId : Nat) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can delete tasks");
+    };
+
+    let task = switch (bandTasks.get(taskId)) {
+      case (null) { Runtime.trap("Task not found") };
+      case (?t) { t };
+    };
+
+    // Get band for creator
+    let band = switch (bands.get(task.bandId)) {
+      case (null) { Runtime.trap("Band not found") };
+      case (?b) { b };
+    };
+
+    // Band leader can delete anything
+    if (band.leaderId != caller) {
+      // Otherwise, only creator can delete own
+      if (task.creatorId != caller) {
+        Runtime.trap("Only the band leader or task creator can delete this task");
+      };
+    };
+
+    // Remove task from band
+    bandTasks.remove(taskId);
+  };
+
+  // Get all tasks for current user's band
+  public query ({ caller }) func getTasks() : async [BandTask] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can view tasks");
+    };
+    let band = switch (bands.values().find(func(b) { b.leaderId == caller or b.members.any(func(m) { m == caller }) })) {
+      case (null) { Runtime.trap("You are not a member of any band") };
+      case (?b) { b };
+    };
+    bandTasks.values().filter(
+      func(task) { task.bandId == band.id }
+    ).toArray();
+  };
+
+  // Rename band (leader only)
+  public shared ({ caller }) func renameBand(name : Text) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can rename bands");
+    };
+
+    let band = switch (bands.values().find(func(b) { b.leaderId == caller })) {
+      case (null) { Runtime.trap("You are not the leader of any band") };
+      case (?b) { b };
+    };
+
+    // Update band name
+    let updated : Band = {
+      id = band.id;
+      name;
+      leaderId = band.leaderId;
+      members = band.members;
+      createdAt = band.createdAt;
+    };
+    bands.add(band.id, updated);
+  };
+
+  // Fetch band members for current user (with principal/name pairs)
+  public query ({ caller }) func getBandMembers() : async [(Principal, Text)] {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can view band members");
+    };
+    let band = switch (bands.values().find(func(b) { b.leaderId == caller or b.members.any(func(m) { m == caller }) })) {
+      case (null) { Runtime.trap("You are not a member of any band") };
+      case (?b) { b };
+    };
+
+    band.members.map(
+      func(p) {
+        let displayName = switch (userProfiles.get(p)) {
+          case (null) { "Unknown User" };
+          case (?profile) { profile.displayName };
+        };
+        (p, displayName);
+      }
+    );
   };
 };
