@@ -79,6 +79,16 @@ export interface StudioEvent {
   'room' : [] | [string],
   'description' : string,
 }
+export interface CommunityPost {
+  'id' : bigint,
+  'authorPrincipal' : Principal,
+  'authorName' : string,
+  'title' : string,
+  'content' : string,
+  'hashtags' : Array<string>,
+  'isAnnouncement' : boolean,
+  'timestamp' : bigint,
+}
 export type Time = bigint;
 export interface UserApprovalInfo {
   'status' : ApprovalStatus,
@@ -130,12 +140,15 @@ export interface _SERVICE {
   'deleteEvent' : ActorMethod<[bigint], undefined>,
   'deleteFileRecord' : ActorMethod<[bigint], undefined>,
   'deleteMessage' : ActorMethod<[bigint], undefined>,
+  'createCommunityPost' : ActorMethod<[string, string, Array<string>, boolean], bigint>,
+  'deleteCommunityPost' : ActorMethod<[bigint], undefined>,
   'deletePoll' : ActorMethod<[bigint], undefined>,
   'generateInviteCode' : ActorMethod<[], string>,
   'getAllPolls' : ActorMethod<[], Array<Poll>>,
   'getAllRSVPs' : ActorMethod<[], Array<RSVP>>,
   'getAllUsers' : ActorMethod<[], Array<[Principal, UserProfile]>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
+  'getCommunityPosts' : ActorMethod<[], Array<CommunityPost>>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getEvents' : ActorMethod<[], Array<StudioEvent>>,
   'getFileRecords' : ActorMethod<[], Array<FileRecord>>,

@@ -7,6 +7,16 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
+export interface CommunityPost {
+    id: bigint;
+    authorPrincipal: Principal;
+    authorName: string;
+    title: string;
+    content: string;
+    hashtags: Array<string>;
+    isAnnouncement: boolean;
+    timestamp: bigint;
+}
 export type Time = bigint;
 export interface StudioEvent {
     id: bigint;
@@ -119,8 +129,10 @@ export interface backendInterface {
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     banUser(user: Principal): Promise<string>;
     checkIfCallerIsAdmin(): Promise<boolean>;
+    createCommunityPost(title: string, content: string, hashtags: Array<string>, isAnnouncement: boolean): Promise<bigint>;
     createEvent(title: string, description: string, startTime: bigint, endTime: bigint, room: string | null): Promise<bigint>;
     createPoll(title: string, options: Array<string>, multiSelect: boolean, anonymous: boolean): Promise<bigint>;
+    deleteCommunityPost(id: bigint): Promise<void>;
     deleteEvent(id: bigint): Promise<void>;
     deleteFileRecord(id: bigint): Promise<void>;
     deleteMessage(messageId: bigint): Promise<void>;
@@ -130,6 +142,7 @@ export interface backendInterface {
     getAllRSVPs(): Promise<Array<RSVP>>;
     getAllUsers(): Promise<Array<[Principal, UserProfile]>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
+    getCommunityPosts(): Promise<Array<CommunityPost>>;
     getCallerUserRole(): Promise<UserRole>;
     getEvents(): Promise<Array<StudioEvent>>;
     getFileRecords(): Promise<Array<FileRecord>>;

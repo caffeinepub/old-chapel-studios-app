@@ -1,26 +1,30 @@
 # Old Chapel Studios App
 
 ## Current State
-Files are uploaded to blob storage and tracked only in React component state (`useState`). When the user logs out or refreshes, uploaded files disappear because no file metadata is persisted to the backend.
+Community posts on the HomePage are stored only in local React state — they disappear on navigation/logout and are not visible to other members.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Backend `FileRecord` type storing: id, name, fileType, size, blobHash, downloadUrl, folderId, uploadDate, uploaderPrincipal
-- Backend method `saveFileRecord(name, fileType, size, blobHash, downloadUrl, folderId)` — saves metadata for a file
-- Backend method `getFileRecords()` — returns all file records visible to the caller (their own files)
-- Backend method `deleteFileRecord(id)` — deletes a file record by ID (only the uploader or admin can delete)
-- Frontend: on successful upload, call `saveFileRecord` to persist metadata
-- Frontend: on page load, call `getFileRecords()` and populate folders with persisted file data
-- Frontend: on file delete, call `deleteFileRecord(id)` to remove from backend
+- `CommunityPost` type in the Motoko backend with fields: id, authorPrincipal, authorName, title, content, hashtags, isAnnouncement, timestamp
+- `createCommunityPost` backend method (authenticated users)
+- `getCommunityPosts` backend query
+- `deleteCommunityPost` backend method (admin only)
+- Wire the three new methods in IDL declarations, backend.d.ts, and backend.ts
+- HomePage loads posts from backend on mount, creates/deletes via backend
 
 ### Modify
-- `FilesPage.tsx`: replace local-state-only file management with backend-persisted file records; load files from backend on mount; save to backend after upload; delete from backend when deleted
+- `HomePage.tsx`: replace local-state post creation/deletion with backend calls
+- `declarations/backend.did.js` and `backend.did.d.ts`: add CommunityPost IDL
+- `backend.d.ts`: add CommunityPost type and interface methods
+- `backend.ts`: add Backend class methods for community posts
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. Add `FileRecord` type and three methods (`saveFileRecord`, `getFileRecords`, `deleteFileRecord`) to `src/backend/main.mo`
-2. Regenerate backend bindings
-3. Update `FilesPage.tsx` to load file records from backend on mount, save on upload, delete on backend delete
+1. Add CommunityPost type + 3 methods to main.mo
+2. Update IDL declarations (backend.did.js, backend.did.d.ts)
+3. Update backend.d.ts interface
+4. Update backend.ts Backend class
+5. Update HomePage.tsx to use backend for posts

@@ -17,6 +17,7 @@ export interface MockUser {
 export interface Post {
   id: string;
   authorId: string;
+  authorName?: string; // real display name from backend profile
   title: string;
   content: string;
   hashtags: string[];

@@ -812,4 +812,64 @@ actor {
     InviteLinksModule.generateInviteCode(inviteState, code);
     code;
   };
+
+  // ====== Community Posts ======
+  public type CommunityPost = {
+    id : Nat;
+    authorPrincipal : Principal;
+    authorName : Text;
+    title : Text;
+    content : Text;
+    hashtags : [Text];
+    isAnnouncement : Bool;
+    timestamp : Int;
+  };
+
+  stable var nextPostId : Nat = 0;
+  stable var communityPosts = Map.empty<Nat, CommunityPost>();
+
+  public shared ({ caller }) func createCommunityPost(
+    title : Text,
+    content : Text,
+    hashtags : [Text],
+    isAnnouncement : Bool,
+  ) : async Nat {
+    if (caller.isAnonymous()) { Runtime.trap("Anonymous callers cannot post") };
+    if (not isUserActiveAndRegistered(caller)) {
+      Runtime.trap("Unauthorized: User is banned or not registered");
+    };
+    let authorName = switch (userProfiles.get(caller)) {
+      case (null) { Runtime.trap("Not registered") };
+      case (?profile) { profile.displayName };
+    };
+    let postId = nextPostId;
+    nextPostId += 1;
+    let post : CommunityPost = {
+      id = postId;
+      authorPrincipal = caller;
+      authorName = authorName;
+      title = title;
+      content = content;
+      hashtags = hashtags;
+      isAnnouncement = isAnnouncement;
+      timestamp = Time.now();
+    };
+    communityPosts.add(postId, post);
+    postId;
+  };
+
+  public query func getCommunityPosts() : async [CommunityPost] {
+    let arr = communityPosts.values().toArray();
+    arr.reverse();
+  };
+
+  public shared ({ caller }) func deleteCommunityPost(id : Nat) : async () {
+    if (caller.toText() != ADMIN_PRINCIPAL) {
+      Runtime.trap("Unauthorized: Only admins can delete posts");
+    };
+    switch (communityPosts.get(id)) {
+      case (null) { Runtime.trap("Post not found") };
+      case (?_) { communityPosts.remove(id) };
+    };
+  };
 };

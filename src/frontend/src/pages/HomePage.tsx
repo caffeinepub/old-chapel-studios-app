@@ -24,7 +24,7 @@ import {
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 const REACTIONS = ["👍", "❤️", "🎵", "🔥"];
 
@@ -61,6 +61,7 @@ export default function HomePage() {
   const { isAdmin } = useIsAdmin();
   const { actor } = useActor();
   const [posts, setPosts] = useState<Post[]>([]);
+  const [postsLoading, setPostsLoading] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [newPost, setNewPost] = useState({
     title: "",
@@ -71,10 +72,41 @@ export default function HomePage() {
   const [availability, setAvailability] = useState<AvailabilityState>(
     getDefaultAvailability(),
   );
+  const [currentUserProfile, setCurrentUserProfile] = useState<{
+    displayName: string;
+  } | null>(null);
 
-  // Load availability from backend
+  const loadPosts = useCallback(async () => {
+    if (!actor) return;
+    try {
+      const backendPosts = await actor.getCommunityPosts();
+      const mapped: Post[] = backendPosts.map((bp) => ({
+        id: String(bp.id),
+        authorId: bp.authorPrincipal.toString(),
+        authorName: bp.authorName,
+        title: bp.title,
+        content: bp.content,
+        hashtags: bp.hashtags,
+        pinned: false,
+        isAnnouncement: bp.isAnnouncement,
+        timestamp: new Date(Number(bp.timestamp / 1_000_000n)).toISOString(),
+        reactions: { "👍": 0, "❤️": 0, "🎵": 0, "🔥": 0 },
+        commentCount: 0,
+      }));
+      mapped.sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+      );
+      setPosts(mapped);
+    } catch (err) {
+      console.error("Failed to load community posts:", err);
+    }
+  }, [actor]);
+
+  // Load availability, current user profile, and posts from backend
   useEffect(() => {
     if (!actor) return;
+
     actor
       .getRoomAvailability()
       .then((raw) => {
@@ -89,15 +121,24 @@ export default function HomePage() {
         }
         setAvailability(state);
       })
-      .catch(() => {
-        // silently ignore if not available
-      });
-  }, [actor]);
+      .catch(() => {});
+
+    actor
+      .getCallerUserProfile()
+      .then((result) => {
+        if (result) {
+          setCurrentUserProfile({ displayName: result.displayName });
+        }
+      })
+      .catch(() => {});
+
+    setPostsLoading(true);
+    loadPosts().finally(() => setPostsLoading(false));
+  }, [actor, loadPosts]);
 
   // Today's index: Mon=0 ... Sun=6
   const todayIdx = (new Date().getDay() + 6) % 7;
 
-  // Find a room that's available today for the badge
   const availableRoomToday = ROOMS.find(
     (room) => availability[room][todayIdx] === "available",
   );
@@ -118,33 +159,77 @@ export default function HomePage() {
     );
   };
 
-  const handleDeletePost = (postId: string) => {
-    setPosts((prev) => prev.filter((p) => p.id !== postId));
+  const handleDeletePost = async (postId: string) => {
+    if (!actor) {
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+      return;
+    }
+    try {
+      await actor.deleteCommunityPost(BigInt(postId));
+      await loadPosts();
+    } catch (err) {
+      console.error("Failed to delete post:", err);
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+    }
   };
 
-  const handleCreatePost = () => {
+  const handleCreatePost = async () => {
     if (!newPost.title.trim() || !newPost.content.trim()) return;
-    const post: Post = {
-      id: `post-${Date.now()}`,
-      authorId: CURRENT_USER.id,
-      title: newPost.title,
-      content: newPost.content,
-      hashtags: newPost.hashtags
-        .split(/[,\s]+/)
-        .map((h) => h.replace("#", "").trim())
-        .filter(Boolean),
-      pinned: false,
-      isAnnouncement: newPost.isAnnouncement,
-      timestamp: new Date().toISOString(),
-      reactions: { "👍": 0, "❤️": 0, "🎵": 0, "🔥": 0 },
-      commentCount: 0,
-    };
-    setPosts((prev) => [post, ...prev]);
-    setNewPost({ title: "", content: "", hashtags: "", isAnnouncement: false });
+    const hashtagsArray = newPost.hashtags
+      .split(/[,\s]+/)
+      .map((h) => h.replace("#", "").trim())
+      .filter(Boolean);
+    const capturedTitle = newPost.title;
+    const capturedContent = newPost.content;
+    const capturedIsAnnouncement = newPost.isAnnouncement;
+
     setShowCreatePost(false);
+    setNewPost({ title: "", content: "", hashtags: "", isAnnouncement: false });
+
+    if (actor) {
+      try {
+        await actor.createCommunityPost(
+          capturedTitle,
+          capturedContent,
+          hashtagsArray,
+          capturedIsAnnouncement,
+        );
+        await loadPosts();
+      } catch (err) {
+        console.error("Failed to create post:", err);
+        const post: Post = {
+          id: `local-${Date.now()}`,
+          authorId: CURRENT_USER.id,
+          authorName: currentUserProfile?.displayName || "Unknown",
+          title: capturedTitle,
+          content: capturedContent,
+          hashtags: hashtagsArray,
+          pinned: false,
+          isAnnouncement: capturedIsAnnouncement,
+          timestamp: new Date().toISOString(),
+          reactions: { "👍": 0, "❤️": 0, "🎵": 0, "🔥": 0 },
+          commentCount: 0,
+        };
+        setPosts((prev) => [post, ...prev]);
+      }
+    } else {
+      const post: Post = {
+        id: `local-${Date.now()}`,
+        authorId: CURRENT_USER.id,
+        authorName: currentUserProfile?.displayName || "Unknown",
+        title: capturedTitle,
+        content: capturedContent,
+        hashtags: hashtagsArray,
+        pinned: false,
+        isAnnouncement: capturedIsAnnouncement,
+        timestamp: new Date().toISOString(),
+        reactions: { "👍": 0, "❤️": 0, "🎵": 0, "🔥": 0 },
+        commentCount: 0,
+      };
+      setPosts((prev) => [post, ...prev]);
+    }
   };
 
-  // Sort: pinned first
   const sortedPosts = [...posts].sort((a, b) => {
     if (a.pinned && !b.pinned) return -1;
     if (!a.pinned && b.pinned) return 1;
@@ -173,7 +258,6 @@ export default function HomePage() {
               >
                 Available This Week
               </h3>
-              {/* Urgent badge — only shown if a room is available today */}
               {availableRoomToday && (
                 <span
                   className="text-xs px-2 py-0.5 rounded-full font-semibold animate-pulse"
@@ -187,7 +271,6 @@ export default function HomePage() {
               )}
             </div>
 
-            {/* Mini grid */}
             <div className="overflow-x-auto no-scrollbar">
               <table className="w-full text-xs">
                 <thead>
@@ -229,7 +312,6 @@ export default function HomePage() {
               </table>
             </div>
 
-            {/* Legend */}
             <div className="flex gap-3 mt-2 text-[10px] text-muted-foreground">
               <span className="flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
@@ -275,166 +357,188 @@ export default function HomePage() {
 
           {/* Posts Feed */}
           <div className="flex flex-col gap-3 px-4">
-            {sortedPosts.map((post, idx) => {
-              const author = getUserById(post.authorId);
-              const ocidIndex = idx + 1;
-              return (
-                <motion.div
-                  key={post.id}
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.06 }}
-                  data-ocid={`home.post.item.${ocidIndex}`}
-                >
-                  <div
-                    className="rounded-xl border p-4 relative"
-                    style={{
-                      backgroundColor: "oklch(0.17 0.01 45)",
-                      borderColor: post.pinned
-                        ? "oklch(0.62 0.22 40 / 0.4)"
-                        : "oklch(0.28 0.015 45)",
-                      boxShadow: post.pinned
-                        ? "0 0 0 1px oklch(0.62 0.22 40 / 0.2)"
-                        : "none",
-                    }}
+            {postsLoading ? (
+              <div
+                className="flex items-center justify-center py-12"
+                data-ocid="home.posts.loading_state"
+              >
+                <div
+                  className="w-6 h-6 rounded-full border-2 animate-spin"
+                  style={{
+                    borderColor: "#FF4500",
+                    borderTopColor: "transparent",
+                  }}
+                />
+              </div>
+            ) : sortedPosts.length === 0 ? (
+              <div
+                className="text-center py-12 text-muted-foreground text-sm"
+                data-ocid="home.posts.empty_state"
+              >
+                No posts yet. Be the first to share something!
+              </div>
+            ) : (
+              sortedPosts.map((post, idx) => {
+                const author = getUserById(post.authorId);
+                const displayName =
+                  post.authorName || author?.displayName || "Unknown";
+                const avatarInitials = post.authorName
+                  ? post.authorName
+                      .split(" ")
+                      .map((w) => w[0])
+                      .join("")
+                      .toUpperCase()
+                      .slice(0, 2)
+                  : author?.avatarInitials || "?";
+                const ocidIndex = idx + 1;
+                return (
+                  <motion.div
+                    key={post.id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.06 }}
+                    data-ocid={`home.post.item.${ocidIndex}`}
                   >
-                    {/* Admin delete button */}
-                    {isAdmin && (
-                      <button
-                        type="button"
-                        data-ocid={`home.post.delete_button.${ocidIndex}`}
-                        onClick={() => handleDeletePost(post.id)}
-                        className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-red-500/20"
-                        title="Delete post"
-                      >
-                        <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                      </button>
-                    )}
+                    <div
+                      className="rounded-xl border p-4 relative"
+                      style={{
+                        backgroundColor: "oklch(0.17 0.01 45)",
+                        borderColor: post.pinned
+                          ? "oklch(0.62 0.22 40 / 0.4)"
+                          : "oklch(0.28 0.015 45)",
+                        boxShadow: post.pinned
+                          ? "0 0 0 1px oklch(0.62 0.22 40 / 0.2)"
+                          : "none",
+                      }}
+                    >
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          data-ocid={`home.post.delete_button.${ocidIndex}`}
+                          onClick={() => handleDeletePost(post.id)}
+                          className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-lg transition-colors hover:bg-red-500/20"
+                          title="Delete post"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                        </button>
+                      )}
 
-                    {/* Announcement banner */}
-                    {post.isAnnouncement && (
-                      <div
-                        className="flex items-center gap-1.5 text-xs font-semibold mb-2 py-1 px-2 rounded-lg"
-                        style={{
-                          backgroundColor: "oklch(0.62 0.22 40 / 0.15)",
-                          color: "#FF4500",
-                        }}
-                      >
-                        📢 Announcement
-                      </div>
-                    )}
-
-                    {/* Author row */}
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
+                      {post.isAnnouncement && (
                         <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
+                          className="flex items-center gap-1.5 text-xs font-semibold mb-2 py-1 px-2 rounded-lg"
                           style={{
-                            backgroundColor: author?.avatarColor || "#FF4500",
+                            backgroundColor: "oklch(0.62 0.22 40 / 0.15)",
+                            color: "#FF4500",
                           }}
                         >
-                          {author?.avatarInitials || "?"}
+                          📢 Announcement
                         </div>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-semibold text-foreground">
-                              {author?.displayName || "Unknown"}
-                            </span>
-                            {author && (
-                              <span
-                                className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${ROLE_COLORS[author.role]}`}
-                              >
-                                {ROLE_LABELS[author.role]}
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-xs text-muted-foreground">
-                            {formatRelativeTime(post.timestamp)}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Pin indicator */}
-                      {post.pinned && (
-                        <Pin
-                          className="w-3.5 h-3.5 flex-shrink-0"
-                          style={{ color: "#FF4500" }}
-                        />
                       )}
-                    </div>
 
-                    {/* Title */}
-                    <h3
-                      className="font-bold text-sm mb-1 text-foreground"
-                      style={{ fontFamily: "'Outfit', sans-serif" }}
-                    >
-                      {post.title}
-                    </h3>
-
-                    {/* Content */}
-                    <p className="text-sm text-foreground/80 leading-relaxed">
-                      {post.content}
-                    </p>
-
-                    {/* Hashtags */}
-                    {post.hashtags.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {post.hashtags.map((tag) => (
-                          <span
-                            key={tag}
-                            className="text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer hover:brightness-110 transition-all"
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white flex-shrink-0"
                             style={{
-                              backgroundColor: "oklch(0.62 0.22 40 / 0.15)",
-                              color: "#FF4500",
+                              backgroundColor: author?.avatarColor || "#FF4500",
                             }}
                           >
-                            #{tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Reactions + Comments */}
-                    <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/50">
-                      <div className="flex gap-1">
-                        {REACTIONS.map((emoji) => (
-                          <button
-                            type="button"
-                            key={emoji}
-                            onClick={() => handleReact(post.id, emoji)}
-                            className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg hover:bg-accent transition-all"
-                          >
-                            <span>{emoji}</span>
-                            {post.reactions[emoji] > 0 && (
-                              <span className="text-muted-foreground">
-                                {post.reactions[emoji]}
+                            {avatarInitials}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm font-semibold text-foreground">
+                                {displayName}
                               </span>
-                            )}
-                          </button>
-                        ))}
+                              {author && (
+                                <span
+                                  className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${ROLE_COLORS[author.role]}`}
+                                >
+                                  {ROLE_LABELS[author.role]}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {formatRelativeTime(post.timestamp)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {post.pinned && (
+                          <Pin
+                            className="w-3.5 h-3.5 flex-shrink-0"
+                            style={{ color: "#FF4500" }}
+                          />
+                        )}
                       </div>
 
-                      <button
-                        type="button"
-                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      <h3
+                        className="font-bold text-sm mb-1 text-foreground"
+                        style={{ fontFamily: "'Outfit', sans-serif" }}
                       >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                        {post.commentCount > 0 && post.commentCount}
-                        <span>Reply</span>
-                      </button>
+                        {post.title}
+                      </h3>
+
+                      <p className="text-sm text-foreground/80 leading-relaxed">
+                        {post.content}
+                      </p>
+
+                      {post.hashtags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {post.hashtags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer hover:brightness-110 transition-all"
+                              style={{
+                                backgroundColor: "oklch(0.62 0.22 40 / 0.15)",
+                                color: "#FF4500",
+                              }}
+                            >
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/50">
+                        <div className="flex gap-1">
+                          {REACTIONS.map((emoji) => (
+                            <button
+                              type="button"
+                              key={emoji}
+                              onClick={() => handleReact(post.id, emoji)}
+                              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg hover:bg-accent transition-all"
+                            >
+                              <span>{emoji}</span>
+                              {post.reactions[emoji] > 0 && (
+                                <span className="text-muted-foreground">
+                                  {post.reactions[emoji]}
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <MessageCircle className="w-3.5 h-3.5" />
+                          {post.commentCount > 0 && post.commentCount}
+                          <span>Reply</span>
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              );
-            })}
+                  </motion.div>
+                );
+              })
+            )}
           </div>
 
-          {/* Bottom spacer */}
           <div className="h-6" />
         </div>
       </main>
 
-      {/* Floating Action Button */}
       <button
         type="button"
         onClick={() => setShowCreatePost(true)}
@@ -445,7 +549,6 @@ export default function HomePage() {
         <Plus className="w-7 h-7 text-white" />
       </button>
 
-      {/* Create Post Modal */}
       <AnimatePresence>
         {showCreatePost && (
           <motion.div
@@ -470,7 +573,6 @@ export default function HomePage() {
                 maxHeight: "85vh",
               }}
             >
-              {/* Modal header */}
               <div className="flex items-center justify-between">
                 <h2
                   className="font-bold text-lg"
@@ -487,7 +589,6 @@ export default function HomePage() {
                 </button>
               </div>
 
-              {/* Form */}
               <div className="flex flex-col gap-3 overflow-y-auto">
                 <Input
                   placeholder="Post title…"
@@ -557,7 +658,6 @@ export default function HomePage() {
                 </button>
               </div>
 
-              {/* Footer */}
               <div className="flex gap-2 pt-2 border-t border-border/50">
                 <Button
                   variant="ghost"

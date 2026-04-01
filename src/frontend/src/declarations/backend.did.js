@@ -91,6 +91,16 @@ export const FileRecord = IDL.Record({
   'uploadDate' : IDL.Text,
   'uploaderPrincipal' : IDL.Principal,
 });
+export const CommunityPost = IDL.Record({
+  'id' : IDL.Nat,
+  'authorPrincipal' : IDL.Principal,
+  'authorName' : IDL.Text,
+  'title' : IDL.Text,
+  'content' : IDL.Text,
+  'hashtags' : IDL.Vec(IDL.Text),
+  'isAnnouncement' : IDL.Bool,
+  'timestamp' : IDL.Int,
+});
 export const InviteCode = IDL.Record({
   'created' : Time,
   'code' : IDL.Text,
@@ -135,9 +145,13 @@ export const idlService = IDL.Service({
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'banUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
   'checkIfCallerIsAdmin' : IDL.Func([], [IDL.Bool], ['query']),
-  'createEvent' : IDL.Func([IDL.Text, IDL.Text, IDL.Int, IDL.Int, IDL.Opt(IDL.Text)], [IDL.Nat], []),
+  'createCommunityPost' : IDL.Func([IDL.Text, IDL.Text, IDL.Vec(IDL.Text), IDL.Bool], [IDL.Nat], []),
+  'createCommunityPost' : IDL.Func([IDL.Text, IDL.Text, IDL.Vec(IDL.Text), IDL.Bool], [IDL.Nat], []),
+    'createEvent' : IDL.Func([IDL.Text, IDL.Text, IDL.Int, IDL.Int, IDL.Opt(IDL.Text)], [IDL.Nat], []),
   'createPoll' : IDL.Func([IDL.Text, IDL.Vec(IDL.Text), IDL.Bool, IDL.Bool], [IDL.Nat], []),
-  'deleteEvent' : IDL.Func([IDL.Nat], [], []),
+  'deleteCommunityPost' : IDL.Func([IDL.Nat], [], []),
+  'deleteCommunityPost' : IDL.Func([IDL.Nat], [], []),
+    'deleteEvent' : IDL.Func([IDL.Nat], [], []),
   'deleteFileRecord' : IDL.Func([IDL.Nat], [], []),
   'deleteMessage' : IDL.Func([IDL.Nat], [], []),
   'deletePoll' : IDL.Func([IDL.Nat], [], []),
@@ -146,6 +160,8 @@ export const idlService = IDL.Service({
   'getAllRSVPs' : IDL.Func([], [IDL.Vec(RSVP)], ['query']),
   'getAllUsers' : IDL.Func([], [IDL.Vec(IDL.Tuple(IDL.Principal, UserProfile))], ['query']),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
+    'getCommunityPosts' : IDL.Func([], [IDL.Vec(CommunityPost)], ['query']),
+  'getCommunityPosts' : IDL.Func([], [IDL.Vec(CommunityPost)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getEvents' : IDL.Func([], [IDL.Vec(StudioEvent)], ['query']),
   'getFileRecords' : IDL.Func([], [IDL.Vec(FileRecord)], ['query']),
@@ -191,6 +207,7 @@ export const idlFactory = ({ IDL }) => {
   const UserStatus = IDL.Variant({ 'active' : IDL.Null, 'banned' : IDL.Null, 'suspended' : IDL.Null });
   const AppUserRole = IDL.Variant({ 'client' : IDL.Null, 'musician' : IDL.Null, 'admin' : IDL.Null, 'staff' : IDL.Null });
   const UserProfile = IDL.Record({ 'status' : UserStatus, 'shareContact' : IDL.Bool, 'displayName' : IDL.Text, 'joinedAt' : IDL.Int, 'role' : AppUserRole, 'email' : IDL.Opt(IDL.Text), 'avatarUrl' : IDL.Opt(IDL.Text), 'phone' : IDL.Opt(IDL.Text) });
+  const CommunityPost = IDL.Record({ 'id' : IDL.Nat, 'authorPrincipal' : IDL.Principal, 'authorName' : IDL.Text, 'title' : IDL.Text, 'content' : IDL.Text, 'hashtags' : IDL.Vec(IDL.Text), 'isAnnouncement' : IDL.Bool, 'timestamp' : IDL.Int });
   const StudioEvent = IDL.Record({ 'id' : IDL.Nat, 'startTime' : IDL.Int, 'title' : IDL.Text, 'endTime' : IDL.Int, 'createdBy' : IDL.Principal, 'room' : IDL.Opt(IDL.Text), 'description' : IDL.Text });
   const FreeTimeSlot = IDL.Record({ 'id' : IDL.Nat, 'timeStart' : IDL.Text, 'note' : IDL.Text, 'room' : IDL.Text, 'dayLabel' : IDL.Text, 'timeEnd' : IDL.Text });
   const FileRecord = IDL.Record({ 'id' : IDL.Nat, 'name' : IDL.Text, 'fileType' : IDL.Text, 'size' : IDL.Text, 'blobHash' : IDL.Text, 'downloadUrl' : IDL.Text, 'folderId' : IDL.Text, 'uploadDate' : IDL.Text, 'uploaderPrincipal' : IDL.Principal });
@@ -214,8 +231,12 @@ export const idlFactory = ({ IDL }) => {
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'banUser' : IDL.Func([IDL.Principal], [IDL.Text], []),
     'checkIfCallerIsAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'createCommunityPost' : IDL.Func([IDL.Text, IDL.Text, IDL.Vec(IDL.Text), IDL.Bool], [IDL.Nat], []),
+  'createCommunityPost' : IDL.Func([IDL.Text, IDL.Text, IDL.Vec(IDL.Text), IDL.Bool], [IDL.Nat], []),
     'createEvent' : IDL.Func([IDL.Text, IDL.Text, IDL.Int, IDL.Int, IDL.Opt(IDL.Text)], [IDL.Nat], []),
     'createPoll' : IDL.Func([IDL.Text, IDL.Vec(IDL.Text), IDL.Bool, IDL.Bool], [IDL.Nat], []),
+    'deleteCommunityPost' : IDL.Func([IDL.Nat], [], []),
+  'deleteCommunityPost' : IDL.Func([IDL.Nat], [], []),
     'deleteEvent' : IDL.Func([IDL.Nat], [], []),
     'deleteFileRecord' : IDL.Func([IDL.Nat], [], []),
     'deleteMessage' : IDL.Func([IDL.Nat], [], []),
@@ -225,6 +246,8 @@ export const idlFactory = ({ IDL }) => {
     'getAllRSVPs' : IDL.Func([], [IDL.Vec(RSVP)], ['query']),
     'getAllUsers' : IDL.Func([], [IDL.Vec(IDL.Tuple(IDL.Principal, UserProfile))], ['query']),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
+    'getCommunityPosts' : IDL.Func([], [IDL.Vec(CommunityPost)], ['query']),
+  'getCommunityPosts' : IDL.Func([], [IDL.Vec(CommunityPost)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getEvents' : IDL.Func([], [IDL.Vec(StudioEvent)], ['query']),
     'getFileRecords' : IDL.Func([], [IDL.Vec(FileRecord)], ['query']),

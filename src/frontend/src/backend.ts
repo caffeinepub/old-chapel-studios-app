@@ -89,6 +89,16 @@ export class ExternalBlob {
         return this;
     }
 }
+export interface CommunityPost {
+    id: bigint;
+    authorPrincipal: Principal;
+    authorName: string;
+    title: string;
+    content: string;
+    hashtags: Array<string>;
+    isAnnouncement: boolean;
+    timestamp: bigint;
+}
 export type Time = bigint;
 export interface StudioEvent {
     id: bigint;
@@ -208,8 +218,10 @@ export interface backendInterface {
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     banUser(user: Principal): Promise<string>;
     checkIfCallerIsAdmin(): Promise<boolean>;
+    createCommunityPost(title: string, content: string, hashtags: Array<string>, isAnnouncement: boolean): Promise<bigint>;
     createEvent(title: string, description: string, startTime: bigint, endTime: bigint, room: string | null): Promise<bigint>;
     createPoll(title: string, options: Array<string>, multiSelect: boolean, anonymous: boolean): Promise<bigint>;
+    deleteCommunityPost(id: bigint): Promise<void>;
     deleteEvent(id: bigint): Promise<void>;
     deleteFileRecord(id: bigint): Promise<void>;
     getFileRecords(): Promise<Array<any>>;
@@ -221,6 +233,7 @@ export interface backendInterface {
     getAllRSVPs(): Promise<Array<RSVP>>;
     getAllUsers(): Promise<Array<[Principal, UserProfile]>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
+    getCommunityPosts(): Promise<Array<CommunityPost>>;
     getCallerUserRole(): Promise<UserRole>;
     getEvents(): Promise<Array<StudioEvent>>;
     getFreeTimeSlots(): Promise<Array<FreeTimeSlot>>;
@@ -435,6 +448,48 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.checkIfCallerIsAdmin();
+            return result;
+        }
+    }
+    async createCommunityPost(arg0: string, arg1: string, arg2: Array<string>, arg3: boolean): Promise<bigint> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.createCommunityPost(arg0, arg1, arg2, arg3);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.createCommunityPost(arg0, arg1, arg2, arg3);
+            return result;
+        }
+    }
+    async getCommunityPosts(): Promise<Array<CommunityPost>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getCommunityPosts();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getCommunityPosts();
+            return result;
+        }
+    }
+    async deleteCommunityPost(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deleteCommunityPost(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deleteCommunityPost(arg0);
             return result;
         }
     }

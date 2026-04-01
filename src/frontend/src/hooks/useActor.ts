@@ -27,11 +27,7 @@ export function useActor() {
 
       const actor = await createActorWithConfig(actorOptions);
       const adminToken = getSecretParameter("caffeineAdminToken") || "";
-      // Fire-and-forget: do NOT await this. It should not block actor creation
-      // or the login flow. Slow canister responses were causing 10s timeouts.
-      actor._initializeAccessControlWithSecret(adminToken).catch(() => {
-        // Non-fatal -- ignore silently
-      });
+      await actor._initializeAccessControlWithSecret(adminToken);
       return actor;
     },
     // Only refetch when identity changes
