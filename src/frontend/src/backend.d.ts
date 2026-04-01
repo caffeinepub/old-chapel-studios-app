@@ -7,16 +7,6 @@ export interface None {
     __kind__: "None";
 }
 export type Option<T> = Some<T> | None;
-export interface CommunityPost {
-    id: bigint;
-    authorPrincipal: Principal;
-    authorName: string;
-    title: string;
-    content: string;
-    hashtags: Array<string>;
-    isAnnouncement: boolean;
-    timestamp: bigint;
-}
 export type Time = bigint;
 export interface StudioEvent {
     id: bigint;
@@ -60,6 +50,16 @@ export interface UserApprovalInfo {
     status: ApprovalStatus;
     principal: Principal;
 }
+export interface CommunityPost {
+    id: bigint;
+    title: string;
+    content: string;
+    hashtags: Array<string>;
+    authorName: string;
+    isAnnouncement: boolean;
+    timestamp: bigint;
+    authorPrincipal: Principal;
+}
 export interface FreeTimeSlot {
     id: bigint;
     timeStart: string;
@@ -67,6 +67,18 @@ export interface FreeTimeSlot {
     room: string;
     dayLabel: string;
     timeEnd: string;
+}
+export interface PostComment {
+    id: bigint;
+    content: string;
+    authorName: string;
+    timestamp: bigint;
+    authorPrincipal: Principal;
+    postId: bigint;
+}
+export interface PollOption {
+    voteCount: bigint;
+    text: string;
 }
 export interface Message {
     id: bigint;
@@ -76,9 +88,16 @@ export interface Message {
     timestamp: bigint;
     authorPrincipal: Principal;
 }
-export interface PollOption {
-    voteCount: bigint;
-    text: string;
+export interface FileRecord {
+    id: bigint;
+    name: string;
+    size: string;
+    downloadUrl: string;
+    fileType: string;
+    blobHash: string;
+    uploaderPrincipal: Principal;
+    folderId: string;
+    uploadDate: string;
 }
 export interface UserProfile {
     status: UserStatus;
@@ -89,17 +108,6 @@ export interface UserProfile {
     email?: string;
     avatarUrl?: string;
     phone?: string;
-}
-export interface FileRecord {
-    id: bigint;
-    name: string;
-    fileType: string;
-    size: string;
-    blobHash: string;
-    downloadUrl: string;
-    folderId: string;
-    uploadDate: string;
-    uploaderPrincipal: Principal;
 }
 export enum AppUserRole {
     client = "client",
@@ -124,6 +132,8 @@ export enum UserStatus {
 }
 export interface backendInterface {
     addFreeTimeSlot(room: string, dayLabel: string, timeStart: string, timeEnd: string, note: string): Promise<bigint>;
+    addPostComment(postId: bigint, content: string): Promise<bigint>;
+    addPostReaction(postId: bigint, emoji: string): Promise<void>;
     addReaction(messageId: bigint, emoji: string): Promise<void>;
     adminDeleteMessage(messageId: bigint): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
@@ -137,13 +147,14 @@ export interface backendInterface {
     deleteFileRecord(id: bigint): Promise<void>;
     deleteMessage(messageId: bigint): Promise<void>;
     deletePoll(pollId: bigint): Promise<void>;
+    deletePostComment(commentId: bigint): Promise<void>;
     generateInviteCode(): Promise<string>;
     getAllPolls(): Promise<Array<Poll>>;
     getAllRSVPs(): Promise<Array<RSVP>>;
     getAllUsers(): Promise<Array<[Principal, UserProfile]>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
-    getCommunityPosts(): Promise<Array<CommunityPost>>;
     getCallerUserRole(): Promise<UserRole>;
+    getCommunityPosts(): Promise<Array<CommunityPost>>;
     getEvents(): Promise<Array<StudioEvent>>;
     getFileRecords(): Promise<Array<FileRecord>>;
     getFreeTimeSlots(): Promise<Array<FreeTimeSlot>>;
@@ -155,6 +166,8 @@ export interface backendInterface {
         hasVoted: boolean;
         options: Array<PollOption>;
     } | null>;
+    getPostComments(postId: bigint): Promise<Array<PostComment>>;
+    getPostReactions(postId: bigint): Promise<Array<[string, Array<Principal>]>>;
     getReactions(messageId: bigint): Promise<Array<[string, Array<Principal>]>>;
     getRoomAvailability(): Promise<Array<RoomSlot>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;

@@ -12,9 +12,9 @@ import MixinAuthorization "authorization/MixinAuthorization";
 import MixinStorage "blob-storage/Mixin";
 import InviteLinksModule "invite-links/invite-links-module";
 import UserApproval "user-approval/approval";
+import Migration "migration";
 
-
-
+(with migration = Migration.run)
 actor {
   // Constant for admin principal
   let ADMIN_PRINCIPAL : Text = "ulyt5-slv4a-xrfbx-seije-74i6r-4nkkh-ydqng-hgdb2-r3tlc-tkvp4-hae";
@@ -870,6 +870,132 @@ actor {
     switch (communityPosts.get(id)) {
       case (null) { Runtime.trap("Post not found") };
       case (?_) { communityPosts.remove(id) };
+    };
+  };
+
+  // ====== Post Reactions & Comments ======
+  public type PostComment = {
+    id : Nat;
+    postId : Nat;
+    authorPrincipal : Principal;
+    authorName : Text;
+    content : Text;
+    timestamp : Int;
+  };
+
+  stable var postReactions = Map.empty<Nat, Map.Map<Text, [Principal]>>();
+  stable var nextCommentId : Nat = 0;
+  stable var postComments = Map.empty<Nat, PostComment>();
+  stable var postCommentIndex = Map.empty<Nat, [Nat]>();
+
+  public shared ({ caller }) func addPostReaction(postId : Nat, emoji : Text) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can add post reactions");
+    };
+    if (not isUserActiveAndRegistered(caller)) {
+      Runtime.trap("Unauthorized: User is banned or not registered");
+    };
+    switch (userProfiles.get(caller)) {
+      case (null) { Runtime.trap("Not registered") };
+      case (?_) {
+        let emojiMap = switch (postReactions.get(postId)) {
+          case (null) { Map.empty<Text, [Principal]>() };
+          case (?m) { m };
+        };
+        let existing = switch (emojiMap.get(emoji)) {
+          case (null) { [] };
+          case (?arr) { arr };
+        };
+        let alreadyReacted = existing.filter(func(p : Principal) : Bool { p == caller }).size() > 0;
+        let updated = if (alreadyReacted) {
+          existing.filter(func(p : Principal) : Bool { p != caller });
+        } else {
+          existing.concat([caller]);
+        };
+        emojiMap.add(emoji, updated);
+        postReactions.add(postId, emojiMap);
+      };
+    };
+  };
+
+  public query func getPostReactions(postId : Nat) : async [(Text, [Principal])] {
+    switch (postReactions.get(postId)) {
+      case (null) { [] };
+      case (?emojiMap) {
+        emojiMap.entries().toArray();
+      };
+    };
+  };
+
+  public shared ({ caller }) func addPostComment(postId : Nat, content : Text) : async Nat {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can add post comments");
+    };
+    if (not isUserActiveAndRegistered(caller)) {
+      Runtime.trap("Unauthorized: User is banned or not registered");
+    };
+    let authorName = switch (userProfiles.get(caller)) {
+      case (null) { Runtime.trap("Not registered") };
+      case (?profile) { profile.displayName };
+    };
+    let commentId = nextCommentId;
+    nextCommentId += 1;
+    let comment : PostComment = {
+      id = commentId;
+      postId = postId;
+      authorPrincipal = caller;
+      authorName = authorName;
+      content = content;
+      timestamp = Time.now();
+    };
+    postComments.add(commentId, comment);
+    let currentIndex = switch (postCommentIndex.get(postId)) {
+      case (null) { [] };
+      case (?array) { array };
+    };
+    postCommentIndex.add(postId, currentIndex.concat([commentId]));
+    commentId;
+  };
+
+  public query func getPostComments(postId : Nat) : async [PostComment] {
+    let commentIds = switch (postCommentIndex.get(postId)) {
+      case (null) { [] };
+      case (?array) { array };
+    };
+    let result = commentIds.map(
+      func(id) {
+        switch (postComments.get(id)) {
+          case (null) { Runtime.trap("Missing comment") };
+          case (?c) { c };
+        };
+      }
+    );
+    result.reverse();
+  };
+
+  public shared ({ caller }) func deletePostComment(commentId : Nat) : async () {
+    if (not AccessControl.hasPermission(accessControlState, caller, #user)) {
+      Runtime.trap("Unauthorized: Only users can delete comments");
+    };
+    if (not isUserActiveAndRegistered(caller)) {
+      Runtime.trap("Unauthorized: User is banned or not registered");
+    };
+    switch (postComments.get(commentId)) {
+      case (null) { Runtime.trap("Comment not found") };
+      case (?comment) {
+        // Allow comment author or admin to delete
+        if (comment.authorPrincipal != caller and caller.toText() != ADMIN_PRINCIPAL) {
+          Runtime.trap("Unauthorized: Only the comment author or admin can delete this comment");
+        };
+        postComments.remove(commentId);
+        // Remove comment from index
+        let currentIndex = switch (postCommentIndex.get(comment.postId)) {
+          case (null) { [] };
+          case (?array) { array };
+        };
+        let updatedIndex = currentIndex.filter(func(id) { id != commentId });
+        postCommentIndex.add(comment.postId, updatedIndex);
+      };
     };
   };
 };

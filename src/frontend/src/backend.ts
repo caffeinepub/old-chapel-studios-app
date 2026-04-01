@@ -89,16 +89,6 @@ export class ExternalBlob {
         return this;
     }
 }
-export interface CommunityPost {
-    id: bigint;
-    authorPrincipal: Principal;
-    authorName: string;
-    title: string;
-    content: string;
-    hashtags: Array<string>;
-    isAnnouncement: boolean;
-    timestamp: bigint;
-}
 export type Time = bigint;
 export interface StudioEvent {
     id: bigint;
@@ -149,6 +139,16 @@ export interface UserApprovalInfo {
     status: ApprovalStatus;
     principal: Principal;
 }
+export interface CommunityPost {
+    id: bigint;
+    title: string;
+    content: string;
+    hashtags: Array<string>;
+    authorName: string;
+    isAnnouncement: boolean;
+    timestamp: bigint;
+    authorPrincipal: Principal;
+}
 export interface FreeTimeSlot {
     id: bigint;
     timeStart: string;
@@ -156,6 +156,18 @@ export interface FreeTimeSlot {
     room: string;
     dayLabel: string;
     timeEnd: string;
+}
+export interface PostComment {
+    id: bigint;
+    content: string;
+    authorName: string;
+    timestamp: bigint;
+    authorPrincipal: Principal;
+    postId: bigint;
+}
+export interface PollOption {
+    voteCount: bigint;
+    text: string;
 }
 export interface Message {
     id: bigint;
@@ -165,9 +177,16 @@ export interface Message {
     timestamp: bigint;
     authorPrincipal: Principal;
 }
-export interface PollOption {
-    voteCount: bigint;
-    text: string;
+export interface FileRecord {
+    id: bigint;
+    name: string;
+    size: string;
+    downloadUrl: string;
+    fileType: string;
+    blobHash: string;
+    uploaderPrincipal: Principal;
+    folderId: string;
+    uploadDate: string;
 }
 export interface UserProfile {
     status: UserStatus;
@@ -213,6 +232,8 @@ export interface backendInterface {
     _caffeineStorageUpdateGatewayPrincipals(): Promise<void>;
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
     addFreeTimeSlot(room: string, dayLabel: string, timeStart: string, timeEnd: string, note: string): Promise<bigint>;
+    addPostComment(postId: bigint, content: string): Promise<bigint>;
+    addPostReaction(postId: bigint, emoji: string): Promise<void>;
     addReaction(messageId: bigint, emoji: string): Promise<void>;
     adminDeleteMessage(messageId: bigint): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
@@ -224,18 +245,18 @@ export interface backendInterface {
     deleteCommunityPost(id: bigint): Promise<void>;
     deleteEvent(id: bigint): Promise<void>;
     deleteFileRecord(id: bigint): Promise<void>;
-    getFileRecords(): Promise<Array<any>>;
-    saveFileRecord(name: string, fileType: string, size: string, blobHash: string, downloadUrl: string, folderId: string, uploadDate: string): Promise<bigint>;
     deleteMessage(messageId: bigint): Promise<void>;
     deletePoll(pollId: bigint): Promise<void>;
+    deletePostComment(commentId: bigint): Promise<void>;
     generateInviteCode(): Promise<string>;
     getAllPolls(): Promise<Array<Poll>>;
     getAllRSVPs(): Promise<Array<RSVP>>;
     getAllUsers(): Promise<Array<[Principal, UserProfile]>>;
     getCallerUserProfile(): Promise<UserProfile | null>;
-    getCommunityPosts(): Promise<Array<CommunityPost>>;
     getCallerUserRole(): Promise<UserRole>;
+    getCommunityPosts(): Promise<Array<CommunityPost>>;
     getEvents(): Promise<Array<StudioEvent>>;
+    getFileRecords(): Promise<Array<FileRecord>>;
     getFreeTimeSlots(): Promise<Array<FreeTimeSlot>>;
     getInviteCodes(): Promise<Array<InviteCode>>;
     getMessages(channelId: string): Promise<Array<Message>>;
@@ -245,6 +266,8 @@ export interface backendInterface {
         hasVoted: boolean;
         options: Array<PollOption>;
     } | null>;
+    getPostComments(postId: bigint): Promise<Array<PostComment>>;
+    getPostReactions(postId: bigint): Promise<Array<[string, Array<Principal>]>>;
     getReactions(messageId: bigint): Promise<Array<[string, Array<Principal>]>>;
     getRoomAvailability(): Promise<Array<RoomSlot>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
@@ -260,6 +283,7 @@ export interface backendInterface {
     removeUser(user: Principal): Promise<string>;
     requestApproval(): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    saveFileRecord(name: string, fileType: string, size: string, blobHash: string, downloadUrl: string, folderId: string, uploadDate: string): Promise<bigint>;
     setApproval(user: Principal, status: ApprovalStatus): Promise<void>;
     setRoomAvailability(slots: Array<RoomSlot>): Promise<void>;
     submitRSVP(name: string, attending: boolean, inviteCode: string): Promise<void>;
@@ -381,6 +405,34 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async addPostComment(arg0: bigint, arg1: string): Promise<bigint> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addPostComment(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addPostComment(arg0, arg1);
+            return result;
+        }
+    }
+    async addPostReaction(arg0: bigint, arg1: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addPostReaction(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addPostReaction(arg0, arg1);
+            return result;
+        }
+    }
     async addReaction(arg0: bigint, arg1: string): Promise<void> {
         if (this.processError) {
             try {
@@ -465,34 +517,6 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async getCommunityPosts(): Promise<Array<CommunityPost>> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.getCommunityPosts();
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.getCommunityPosts();
-            return result;
-        }
-    }
-    async deleteCommunityPost(arg0: bigint): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.deleteCommunityPost(arg0);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.deleteCommunityPost(arg0);
-            return result;
-        }
-    }
     async createEvent(arg0: string, arg1: string, arg2: bigint, arg3: bigint, arg4: string | null): Promise<bigint> {
         if (this.processError) {
             try {
@@ -521,6 +545,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async deleteCommunityPost(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deleteCommunityPost(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deleteCommunityPost(arg0);
+            return result;
+        }
+    }
     async deleteEvent(arg0: bigint): Promise<void> {
         if (this.processError) {
             try {
@@ -532,6 +570,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.deleteEvent(arg0);
+            return result;
+        }
+    }
+    async deleteFileRecord(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deleteFileRecord(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deleteFileRecord(arg0);
             return result;
         }
     }
@@ -560,6 +612,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.deletePoll(arg0);
+            return result;
+        }
+    }
+    async deletePostComment(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deletePostComment(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deletePostComment(arg0);
             return result;
         }
     }
@@ -647,6 +713,20 @@ export class Backend implements backendInterface {
             return from_candid_UserRole_n21(this._uploadFile, this._downloadFile, result);
         }
     }
+    async getCommunityPosts(): Promise<Array<CommunityPost>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getCommunityPosts();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getCommunityPosts();
+            return result;
+        }
+    }
     async getEvents(): Promise<Array<StudioEvent>> {
         if (this.processError) {
             try {
@@ -659,6 +739,20 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.getEvents();
             return from_candid_vec_n23(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getFileRecords(): Promise<Array<FileRecord>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getFileRecords();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getFileRecords();
+            return result;
         }
     }
     async getFreeTimeSlots(): Promise<Array<FreeTimeSlot>> {
@@ -733,6 +827,34 @@ export class Backend implements backendInterface {
         } else {
             const result = await this.actor.getPollResults(arg0);
             return from_candid_opt_n27(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getPostComments(arg0: bigint): Promise<Array<PostComment>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getPostComments(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getPostComments(arg0);
+            return result;
+        }
+    }
+    async getPostReactions(arg0: bigint): Promise<Array<[string, Array<Principal>]>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getPostReactions(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getPostReactions(arg0);
+            return result;
         }
     }
     async getReactions(arg0: bigint): Promise<Array<[string, Array<Principal>]>> {
@@ -945,6 +1067,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async saveFileRecord(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string, arg5: string, arg6: string): Promise<bigint> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.saveFileRecord(arg0, arg1, arg2, arg3, arg4, arg5, arg6);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.saveFileRecord(arg0, arg1, arg2, arg3, arg4, arg5, arg6);
+            return result;
+        }
+    }
     async setApproval(arg0: Principal, arg1: ApprovalStatus): Promise<void> {
         if (this.processError) {
             try {
@@ -1014,27 +1150,6 @@ export class Backend implements backendInterface {
             const result = await this.actor.vote(arg0, arg1);
             return result;
         }
-    }
-    async getFileRecords(): Promise<Array<any>> {
-        const result = await this.actor.getFileRecords();
-        return result.map((r: any) => ({
-            id: r.id,
-            name: r.name,
-            fileType: r.fileType,
-            size: r.size,
-            blobHash: r.blobHash,
-            downloadUrl: r.downloadUrl,
-            folderId: r.folderId,
-            uploadDate: r.uploadDate,
-            uploaderPrincipal: r.uploaderPrincipal,
-        }));
-    }
-    async saveFileRecord(name: string, fileType: string, size: string, blobHash: string, downloadUrl: string, folderId: string, uploadDate: string): Promise<bigint> {
-        const result = await this.actor.saveFileRecord(name, fileType, size, blobHash, downloadUrl, folderId, uploadDate);
-        return result;
-    }
-    async deleteFileRecord(id: bigint): Promise<void> {
-        await this.actor.deleteFileRecord(id);
     }
 }
 function from_candid_AppUserRole_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _AppUserRole): AppUserRole {

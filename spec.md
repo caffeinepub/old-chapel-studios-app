@@ -1,30 +1,28 @@
 # Old Chapel Studios App
 
 ## Current State
-Community posts on the HomePage are stored only in local React state — they disappear on navigation/logout and are not visible to other members.
+Community posts exist with backend persistence, author display name, admin deletion. No reactions or comments on posts yet.
 
 ## Requested Changes (Diff)
 
 ### Add
-- `CommunityPost` type in the Motoko backend with fields: id, authorPrincipal, authorName, title, content, hashtags, isAnnouncement, timestamp
-- `createCommunityPost` backend method (authenticated users)
-- `getCommunityPosts` backend query
-- `deleteCommunityPost` backend method (admin only)
-- Wire the three new methods in IDL declarations, backend.d.ts, and backend.ts
-- HomePage loads posts from backend on mount, creates/deletes via backend
+- `addPostReaction(postId, emoji)` backend method -- toggles a reaction on/off per user per emoji per post
+- `getPostReactions(postId)` backend query -- returns array of (emoji, [Principal])
+- `addPostComment(postId, content)` backend method -- saves a comment with author display name, timestamp
+- `getPostComments(postId)` backend query -- returns comments for a post in chronological order
+- `deletePostComment(commentId)` backend method -- admin-only delete
+- Frontend: emoji reaction bar on each post (👍 ❤️ 🔥 😂 😮), grouped with count, toggleable
+- Frontend: comment section below each post, expandable, with text input and submit
 
 ### Modify
-- `HomePage.tsx`: replace local-state post creation/deletion with backend calls
-- `declarations/backend.did.js` and `backend.did.d.ts`: add CommunityPost IDL
-- `backend.d.ts`: add CommunityPost type and interface methods
-- `backend.ts`: add Backend class methods for community posts
+- backend.did.d.ts and backend.did.js to include new types and methods
+- Community posts UI to show reactions and comments
 
 ### Remove
-- Nothing removed
+- Nothing
 
 ## Implementation Plan
-1. Add CommunityPost type + 3 methods to main.mo
-2. Update IDL declarations (backend.did.js, backend.did.d.ts)
-3. Update backend.d.ts interface
-4. Update backend.ts Backend class
-5. Update HomePage.tsx to use backend for posts
+1. Add PostReaction and PostComment types + stable maps to main.mo
+2. Implement addPostReaction, getPostReactions, addPostComment, getPostComments, deletePostComment
+3. Regenerate frontend bindings
+4. Update CommunityPage/posts component to show reaction bar and comment section
