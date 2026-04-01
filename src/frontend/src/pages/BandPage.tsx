@@ -109,20 +109,24 @@ export default function BandPage() {
         const amLeader = myPrincipal === leadPrincipal;
         setIsLeader(amLeader);
 
-        const [membersResult, gigsResult, tasksResult] = await Promise.all([
-          actor.getBandMembers(),
-          actor.getGigs(),
-          actor.getTasks(),
-        ]);
+        try {
+          const [membersResult, gigsResult, tasksResult] = await Promise.all([
+            actor.getBandMembers(),
+            actor.getGigs(),
+            actor.getTasks(),
+          ]);
+          setMembers(
+            membersResult.map(([p, name]) => ({
+              principal: p,
+              displayName: name,
+            })),
+          );
+          setGigs(gigsResult);
+          setTasks(tasksResult);
+        } catch (_e) {
+          // Show whatever loaded successfully — defaults already set
+        }
 
-        setMembers(
-          membersResult.map(([p, name]) => ({
-            principal: p,
-            displayName: name,
-          })),
-        );
-        setGigs(gigsResult);
-        setTasks(tasksResult);
         setPageState("in-band");
       } else if (inviteResult) {
         setPendingInvite(inviteResult);
@@ -146,6 +150,15 @@ export default function BandPage() {
     }
     loadBandData();
   }, [actor, actorFetching, loadBandData]);
+
+  // Periodic polling when in-band
+  useEffect(() => {
+    if (pageState !== "in-band" || !actor) return;
+    const interval = setInterval(() => {
+      loadBandData();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [pageState, actor, loadBandData]);
 
   // Search members debounced
   useEffect(() => {
@@ -259,10 +272,8 @@ export default function BandPage() {
     if (!actor) return;
     try {
       await actor.removeMember(member.principal);
-      setMembers((prev) =>
-        prev.filter((m) => m.principal.toText() !== member.principal.toText()),
-      );
       toast.success(`${member.displayName} removed`);
+      await loadBandData();
     } catch (e) {
       toast.error(
         `Failed to remove member: ${e instanceof Error ? e.message : String(e)}`,
@@ -279,6 +290,7 @@ export default function BandPage() {
       setSearchQuery("");
       setSearchResults([]);
       setShowSearch(false);
+      await loadBandData();
     } catch (e) {
       toast.error(
         `Failed to send invite: ${e instanceof Error ? e.message : String(e)}`,
@@ -331,8 +343,9 @@ export default function BandPage() {
     setDeletingGigId(gigId);
     try {
       await actor.deleteGig(gigId);
-      setGigs((prev) => prev.filter((g) => g.id !== gigId));
       toast.success("Gig deleted");
+      const updatedGigs = await actor.getGigs();
+      setGigs(updatedGigs);
     } catch (e) {
       toast.error(
         `Failed to delete gig: ${e instanceof Error ? e.message : String(e)}`,
@@ -366,11 +379,8 @@ export default function BandPage() {
     setTogglingTask(taskId);
     try {
       await actor.completeTask(taskId);
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId ? { ...t, completed: !t.completed } : t,
-        ),
-      );
+      const updatedTasks = await actor.getTasks();
+      setTasks(updatedTasks);
     } catch (e) {
       toast.error(
         `Failed to update task: ${e instanceof Error ? e.message : String(e)}`,
@@ -385,8 +395,9 @@ export default function BandPage() {
     setDeletingTaskId(taskId);
     try {
       await actor.deleteTask(taskId);
-      setTasks((prev) => prev.filter((t) => t.id !== taskId));
       toast.success("Task deleted");
+      const updatedTasks = await actor.getTasks();
+      setTasks(updatedTasks);
     } catch (e) {
       toast.error(
         `Failed to delete task: ${e instanceof Error ? e.message : String(e)}`,

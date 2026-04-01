@@ -1,28 +1,26 @@
 # Old Chapel Studios App
 
 ## Current State
-Community posts exist with backend persistence, author display name, admin deletion. No reactions or comments on posts yet.
+The Band page has a fully wired backend with stable variables for bands, invites, gigs, and tasks. All Motoko methods exist and are declared in the IDL. The BandPage frontend calls these methods. However, several actions (remove member, invite member, toggle task, delete task, delete gig) only update local React state optimistically without re-fetching from the backend, and there is no periodic polling to sync data for all band members in real time.
 
 ## Requested Changes (Diff)
 
 ### Add
-- `addPostReaction(postId, emoji)` backend method -- toggles a reaction on/off per user per emoji per post
-- `getPostReactions(postId)` backend query -- returns array of (emoji, [Principal])
-- `addPostComment(postId, content)` backend method -- saves a comment with author display name, timestamp
-- `getPostComments(postId)` backend query -- returns comments for a post in chronological order
-- `deletePostComment(commentId)` backend method -- admin-only delete
-- Frontend: emoji reaction bar on each post (👍 ❤️ 🔥 😂 😮), grouped with count, toggleable
-- Frontend: comment section below each post, expandable, with text input and submit
+- Periodic polling (every 10 seconds) for band data while user is on the Band page and in a band, so all members see updates in real time
+- Full backend re-fetch after every mutating action (invite sent, member removed, gig added/edited/deleted, task added/toggled/deleted) to ensure UI reflects true backend state
 
 ### Modify
-- backend.did.d.ts and backend.did.js to include new types and methods
-- Community posts UI to show reactions and comments
+- `handleRemoveMember`: after success, re-fetch members from backend instead of only updating local state
+- `handleInviteMember`: after success, confirm by re-fetching band data
+- `handleToggleTask`: after success, re-fetch full task list to ensure correct persisted state
+- `handleDeleteTask`: after success, re-fetch full task list
+- `handleDeleteGig`: after success, re-fetch full gig list
+- `loadBandData`: wrap `getGigs`/`getTasks`/`getBandMembers` errors gracefully so a single failure doesn't break the whole load
 
 ### Remove
-- Nothing
+- Nothing removed
 
 ## Implementation Plan
-1. Add PostReaction and PostComment types + stable maps to main.mo
-2. Implement addPostReaction, getPostReactions, addPostComment, getPostComments, deletePostComment
-3. Regenerate frontend bindings
-4. Update CommunityPage/posts component to show reaction bar and comment section
+1. Add a `useEffect` with `setInterval` (10s) that calls `loadBandData` while `pageState === 'in-band'`
+2. Replace optimistic-only local state updates with backend re-fetches after each mutating action
+3. Ensure error handling is graceful on load (catch individual sub-fetches)
